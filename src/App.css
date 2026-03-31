@@ -202,7 +202,7 @@
 
 .command-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: clamp(1.15rem, 2.1vw, 1.35rem);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: none;
