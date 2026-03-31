@@ -191,6 +191,52 @@
   background: rgba(0, 255, 65, 0.55);
 }
 
+.widget-due-today {
+  border-color: #ff4d4d;
+  color: #ff8080;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 77, 77, 0.22),
+    0 0 14px rgba(255, 77, 77, 0.35);
+}
+
+.widget-due-today::after {
+  background: rgba(255, 77, 77, 0.6);
+}
+
+.widget-due-today .widget-status,
+.widget-due-today .widget-date,
+.widget-due-today .widget-unit {
+  color: #ff9a9a;
+  opacity: 1;
+}
+
+.widget-due-today .widget-count {
+  text-shadow: 0 0 7px rgba(255, 77, 77, 0.9);
+}
+
+.widget-warning {
+  border-color: #ffb020;
+  color: #ffd27a;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 176, 32, 0.26),
+    0 0 14px rgba(255, 176, 32, 0.35);
+}
+
+.widget-warning::after {
+  background: rgba(255, 176, 32, 0.62);
+}
+
+.widget-warning .widget-status,
+.widget-warning .widget-date,
+.widget-warning .widget-unit {
+  color: #ffcf6a;
+  opacity: 1;
+}
+
+.widget-warning .widget-count {
+  text-shadow: 0 0 7px rgba(255, 176, 32, 0.92);
+}
+
 .widget-status,
 .widget-unit,
 .widget-date {

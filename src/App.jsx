@@ -331,7 +331,13 @@ function App() {
             return (
               <article
                 key={widget.id}
-                className="ios-widget"
+                className={`ios-widget${
+                  widget.daysLeft === 0
+                    ? ' widget-due-today'
+                    : widget.daysLeft === 1
+                      ? ' widget-warning'
+                      : ''
+                }`}
                 aria-label={`${widget.label} countdown widget`}
               >
               {editingId === widget.id ? (
