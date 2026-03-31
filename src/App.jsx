@@ -4,6 +4,7 @@ import './App.css'
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 const FIREBASE_DEADLINES_ENDPOINT =
   'https://todolist-database-aae1c-default-rtdb.firebaseio.com/deadlines'
+const CALENDAR_WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function normalizeDate(value) {
   const date = new Date(value)
@@ -20,6 +21,25 @@ function getDaysLeft(deadline) {
 
 function toCommandName(label) {
   return label.trim().replace(/\s+/g, '_')
+}
+
+function getTodayIsoMonth() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+function toDaysLeftLabel(daysLeft) {
+  if (daysLeft === 0) {
+    return 'due today'
+  }
+
+  if (daysLeft === 1) {
+    return '1 day left'
+  }
+
+  return `${daysLeft} days left`
 }
 
 function toWidgetList(firebaseData) {
@@ -47,6 +67,7 @@ function toWidgetList(firebaseData) {
 }
 
 function App() {
+  const [calendarMonth, setCalendarMonth] = useState(getTodayIsoMonth())
   const [form, setForm] = useState({
     label: '',
     deadline: '',
@@ -76,6 +97,89 @@ function App() {
         .sort((a, b) => normalizeDate(a.deadline) - normalizeDate(b.deadline)),
     [widgets],
   )
+
+  const calendarTaskMap = useMemo(() => {
+    const taskMap = {}
+
+    preparedWidgets.forEach((widget) => {
+      if (!widget.deadline.startsWith(`${calendarMonth}-`)) {
+        return
+      }
+
+      if (!taskMap[widget.deadline]) {
+        taskMap[widget.deadline] = []
+      }
+
+      taskMap[widget.deadline].push(widget)
+    })
+
+    return taskMap
+  }, [preparedWidgets, calendarMonth])
+
+  const calendarDays = useMemo(() => {
+    const [yearString, monthString] = calendarMonth.split('-')
+    const year = Number(yearString)
+    const month = Number(monthString)
+
+    if (
+      !yearString ||
+      !monthString ||
+      Number.isNaN(year) ||
+      Number.isNaN(month) ||
+      month < 1 ||
+      month > 12
+    ) {
+      return []
+    }
+
+    const firstDayIndex = new Date(year, month - 1, 1).getDay()
+    const dayCount = new Date(year, month, 0).getDate()
+    const calendarCells = []
+
+    for (let index = 0; index < firstDayIndex; index += 1) {
+      calendarCells.push({
+        key: `empty-${index}`,
+        isCurrentMonth: false,
+      })
+    }
+
+    for (let day = 1; day <= dayCount; day += 1) {
+      const dayString = String(day).padStart(2, '0')
+      const isoDate = `${yearString}-${monthString}-${dayString}`
+
+      calendarCells.push({
+        key: isoDate,
+        isCurrentMonth: true,
+        day,
+        isoDate,
+        tasks: calendarTaskMap[isoDate] ?? [],
+      })
+    }
+
+    return calendarCells
+  }, [calendarMonth, calendarTaskMap])
+
+  const calendarMonthLabel = useMemo(() => {
+    const [yearString, monthString] = calendarMonth.split('-')
+    const year = Number(yearString)
+    const month = Number(monthString)
+
+    if (
+      !yearString ||
+      !monthString ||
+      Number.isNaN(year) ||
+      Number.isNaN(month) ||
+      month < 1 ||
+      month > 12
+    ) {
+      return calendarMonth
+    }
+
+    return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric',
+    })
+  }, [calendarMonth])
 
   useEffect(() => {
     let isDisposed = false
@@ -213,6 +317,10 @@ function App() {
     setEditForm((current) => ({ ...current, [name]: value }))
   }
 
+  const handleCalendarMonthChange = (event) => {
+    setCalendarMonth(event.target.value || getTodayIsoMonth())
+  }
+
   const handleSaveEdit = async (id) => {
     if (!canSaveEdit) {
       return
@@ -313,6 +421,64 @@ function App() {
             </div>
           </form>
         )}
+      </section>
+
+      <section className="calendar-panel" aria-label="Calendar task lookup">
+        <div className="calendar-header">
+          <div>
+            <p className="calendar-title">[MONTH_CALENDAR_OVERVIEW]</p>
+            <p className="calendar-month-label">{calendarMonthLabel}</p>
+          </div>
+          <label className="calendar-input-label">
+            &gt; pick_month
+            <input
+              type="month"
+              value={calendarMonth}
+              onChange={handleCalendarMonthChange}
+              className="calendar-input"
+            />
+          </label>
+        </div>
+
+        <div className="calendar-grid-scroll" aria-live="polite">
+          <div className="calendar-grid" role="grid" aria-label={`Calendar for ${calendarMonthLabel}`}>
+            {CALENDAR_WEEK_DAYS.map((dayName) => (
+              <p key={dayName} className="calendar-weekday" role="columnheader">
+                {dayName}
+              </p>
+            ))}
+            {calendarDays.map((dayCell) =>
+              dayCell.isCurrentMonth ? (
+                <article
+                  key={dayCell.key}
+                  className={`calendar-day${dayCell.tasks.length > 0 ? ' calendar-day-has-tasks' : ''}`}
+                  role="gridcell"
+                >
+                  <p className="calendar-day-number">{dayCell.day}</p>
+                  {dayCell.tasks.length === 0 ? (
+                    <p className="calendar-day-empty-text">no tasks</p>
+                  ) : (
+                    <ul className="calendar-day-task-list">
+                      {dayCell.tasks.map((task) => (
+                        <li key={`calendar-${dayCell.isoDate}-${task.id}`} className="calendar-day-task-item">
+                          <span className="calendar-day-task-name">&gt; {toCommandName(task.label)}</span>
+                          <span className="calendar-day-task-days">{toDaysLeftLabel(task.daysLeft)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </article>
+              ) : (
+                <div
+                  key={dayCell.key}
+                  className="calendar-day calendar-day-empty"
+                  role="presentation"
+                  aria-hidden="true"
+                />
+              ),
+            )}
+          </div>
+        </div>
       </section>
 
       <section className="widget-grid">
