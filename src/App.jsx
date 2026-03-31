@@ -72,6 +72,7 @@ function App() {
           ...widget,
           daysLeft: getDaysLeft(widget.deadline),
         }))
+        .filter((widget) => widget.daysLeft >= 0)
         .sort((a, b) => normalizeDate(a.deadline) - normalizeDate(b.deadline)),
     [widgets],
   )
@@ -322,12 +323,17 @@ function App() {
             <p className="widget-date">create your first deadline to begin tracking.</p>
           </article>
         ) : (
-          preparedWidgets.map((widget) => (
-            <article
-              key={widget.id}
-              className="ios-widget"
-              aria-label={`${widget.label} countdown widget`}
-            >
+          preparedWidgets.map((widget) => {
+            if (widget.daysLeft < 0) {
+              return null
+            }
+
+            return (
+              <article
+                key={widget.id}
+                className="ios-widget"
+                aria-label={`${widget.label} countdown widget`}
+              >
               {editingId === widget.id ? (
                 <>
                   <p className="widget-status">[EDIT_MODE]</p>
@@ -376,10 +382,8 @@ function App() {
                 <>
                   <p className="command-title">&gt; {toCommandName(widget.label)}</p>
                   <p className="widget-status">[SYS_TIME_LEFT]</p>
-                  <p className="widget-count">
-                    {widget.daysLeft >= 0 ? widget.daysLeft : Math.abs(widget.daysLeft)}
-                  </p>
-                  <p className="widget-unit">{widget.daysLeft >= 0 ? 'DAYS' : 'DAYS OVERDUE'}</p>
+                  <p className="widget-count">{widget.daysLeft}</p>
+                  <p className="widget-unit">DAYS</p>
                   <p className="widget-date">target: {widget.deadline}</p>
                   <div className="widget-actions">
                     <button
@@ -399,8 +403,9 @@ function App() {
                   </div>
                 </>
               )}
-            </article>
-          ))
+              </article>
+            )
+          })
         )}
       </section>
     </main>
