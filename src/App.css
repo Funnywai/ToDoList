@@ -107,6 +107,21 @@
   overflow-x: auto;
 }
 
+.calendar-actions {
+  margin-top: 12px;
+}
+
+.calendar-close-btn {
+  border-color: var(--text-dim);
+  color: var(--text-dim);
+  box-shadow: none;
+}
+
+.calendar-close-btn:hover {
+  background: var(--text-dim);
+  color: #021105;
+}
+
 .calendar-grid {
   min-width: 720px;
   display: grid;
@@ -306,11 +321,11 @@
   border-radius: 30px;
   background: var(--widget-bg);
   border: 1px solid var(--green);
-  padding: 18px;
-  min-height: 190px;
+  padding: 17px;
+  min-height: 130px;
   display: grid;
   align-content: start;
-  gap: 7px;
+  gap: 6px;
   box-shadow:
     inset 0 0 0 1px rgba(0, 255, 65, 0.2),
     0 0 14px rgba(0, 255, 65, 0.28);
@@ -384,6 +399,43 @@
 
 .widget-unit {
   font-size: 0.64rem;
+}
+
+.widget-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.widget-meta {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.widget-time-right {
+  margin-left: auto;
+  min-width: 108px;
+  display: grid;
+  justify-items: end;
+  text-align: right;
+  gap: 3px;
+}
+
+.widget-count-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.widget-time-right .widget-count {
+  margin: 0;
+}
+
+.widget-time-right .widget-unit {
+  margin: 0 0 3px;
 }
 
 .command-title {
@@ -506,6 +558,10 @@
   }
 
   .ios-widget {
-    min-height: 175px;
+    min-height: 146px;
+  }
+
+  .widget-time-right {
+    min-width: 94px;
   }
 }

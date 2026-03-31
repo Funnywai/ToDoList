@@ -68,6 +68,7 @@ function toWidgetList(firebaseData) {
 
 function App() {
   const [calendarMonth, setCalendarMonth] = useState(getTodayIsoMonth())
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [form, setForm] = useState({
     label: '',
     deadline: '',
@@ -321,6 +322,14 @@ function App() {
     setCalendarMonth(event.target.value || getTodayIsoMonth())
   }
 
+  const handleOpenCalendar = () => {
+    setIsCalendarOpen(true)
+  }
+
+  const handleCloseCalendar = () => {
+    setIsCalendarOpen(false)
+  }
+
   const handleSaveEdit = async (id) => {
     if (!canSaveEdit) {
       return
@@ -424,61 +433,78 @@ function App() {
       </section>
 
       <section className="calendar-panel" aria-label="Calendar task lookup">
-        <div className="calendar-header">
-          <div>
-            <p className="calendar-title">[MONTH_CALENDAR_OVERVIEW]</p>
-            <p className="calendar-month-label">{calendarMonthLabel}</p>
-          </div>
-          <label className="calendar-input-label">
-            &gt; pick_month
-            <input
-              type="month"
-              value={calendarMonth}
-              onChange={handleCalendarMonthChange}
-              className="calendar-input"
-            />
-          </label>
-        </div>
-
-        <div className="calendar-grid-scroll" aria-live="polite">
-          <div className="calendar-grid" role="grid" aria-label={`Calendar for ${calendarMonthLabel}`}>
-            {CALENDAR_WEEK_DAYS.map((dayName) => (
-              <p key={dayName} className="calendar-weekday" role="columnheader">
-                {dayName}
-              </p>
-            ))}
-            {calendarDays.map((dayCell) =>
-              dayCell.isCurrentMonth ? (
-                <article
-                  key={dayCell.key}
-                  className={`calendar-day${dayCell.tasks.length > 0 ? ' calendar-day-has-tasks' : ''}`}
-                  role="gridcell"
-                >
-                  <p className="calendar-day-number">{dayCell.day}</p>
-                  {dayCell.tasks.length === 0 ? (
-                    <p className="calendar-day-empty-text">no tasks</p>
-                  ) : (
-                    <ul className="calendar-day-task-list">
-                      {dayCell.tasks.map((task) => (
-                        <li key={`calendar-${dayCell.isoDate}-${task.id}`} className="calendar-day-task-item">
-                          <span className="calendar-day-task-name">&gt; {toCommandName(task.label)}</span>
-                          <span className="calendar-day-task-days">{toDaysLeftLabel(task.daysLeft)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </article>
-              ) : (
-                <div
-                  key={dayCell.key}
-                  className="calendar-day calendar-day-empty"
-                  role="presentation"
-                  aria-hidden="true"
+        {!isCalendarOpen ? (
+          <button type="button" className="create-toggle-btn" onClick={handleOpenCalendar}>
+            &gt; open_calendar()
+          </button>
+        ) : (
+          <>
+            <div className="calendar-header">
+              <div>
+                <p className="calendar-title">[MONTH_CALENDAR_OVERVIEW]</p>
+                <p className="calendar-month-label">{calendarMonthLabel}</p>
+              </div>
+              <label className="calendar-input-label">
+                &gt; pick_month
+                <input
+                  type="month"
+                  value={calendarMonth}
+                  onChange={handleCalendarMonthChange}
+                  className="calendar-input"
                 />
-              ),
-            )}
-          </div>
-        </div>
+              </label>
+            </div>
+
+            <div className="calendar-grid-scroll" aria-live="polite">
+              <div className="calendar-grid" role="grid" aria-label={`Calendar for ${calendarMonthLabel}`}>
+                {CALENDAR_WEEK_DAYS.map((dayName) => (
+                  <p key={dayName} className="calendar-weekday" role="columnheader">
+                    {dayName}
+                  </p>
+                ))}
+                {calendarDays.map((dayCell) =>
+                  dayCell.isCurrentMonth ? (
+                    <article
+                      key={dayCell.key}
+                      className={`calendar-day${dayCell.tasks.length > 0 ? ' calendar-day-has-tasks' : ''}`}
+                      role="gridcell"
+                    >
+                      <p className="calendar-day-number">{dayCell.day}</p>
+                      {dayCell.tasks.length === 0 ? (
+                        <p className="calendar-day-empty-text">no tasks</p>
+                      ) : (
+                        <ul className="calendar-day-task-list">
+                          {dayCell.tasks.map((task) => (
+                            <li
+                              key={`calendar-${dayCell.isoDate}-${task.id}`}
+                              className="calendar-day-task-item"
+                            >
+                              <span className="calendar-day-task-name">&gt; {toCommandName(task.label)}</span>
+                              <span className="calendar-day-task-days">{toDaysLeftLabel(task.daysLeft)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </article>
+                  ) : (
+                    <div
+                      key={dayCell.key}
+                      className="calendar-day calendar-day-empty"
+                      role="presentation"
+                      aria-hidden="true"
+                    />
+                  ),
+                )}
+              </div>
+            </div>
+
+            <div className="calendar-actions">
+              <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseCalendar}>
+                &gt; close_calendar()
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="widget-grid">
@@ -552,11 +578,19 @@ function App() {
                 </>
               ) : (
                 <>
-                  <p className="command-title">&gt; {toCommandName(widget.label)}</p>
-                  <p className="widget-status">[SYS_TIME_LEFT]</p>
-                  <p className="widget-count">{widget.daysLeft}</p>
-                  <p className="widget-unit">DAYS</p>
-                  <p className="widget-date">target: {widget.deadline}</p>
+                  <div className="widget-top-row">
+                    <div className="widget-meta">
+                      <p className="command-title">&gt; {toCommandName(widget.label)}</p>
+                      <p className="widget-date">target: {widget.deadline}</p>
+                    </div>
+                    <div className="widget-time-right">
+                      <p className="widget-status">[SYS_TIME_LEFT]</p>
+                      <div className="widget-count-row">
+                        <p className="widget-count">{widget.daysLeft}</p>
+                        <p className="widget-unit">DAYS</p>
+                      </div>
+                    </div>
+                  </div>
                   <div className="widget-actions">
                     <button
                       type="button"
