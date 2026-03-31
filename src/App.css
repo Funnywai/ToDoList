@@ -1,0 +1,270 @@
+:root {
+  --app-bg: #000000;
+  --widget-bg: #111111;
+  --grid-line: rgba(0, 255, 65, 0.16);
+  --green: #00ff41;
+  --amber: #ffbf00;
+  --text-dim: #7de89a;
+  --font-terminal: 'JetBrains Mono', 'Courier New', Courier, monospace;
+}
+
+.app-shell {
+  min-height: 100svh;
+  padding: 32px 20px 48px;
+  color: var(--green);
+  font-family: var(--font-terminal);
+  background:
+    linear-gradient(0deg, rgba(0, 255, 65, 0.05), rgba(0, 255, 65, 0.01)),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    var(--app-bg);
+  background-size: auto, 28px 28px, 28px 28px, auto;
+}
+
+.app-header {
+  max-width: 1000px;
+  margin: 0 auto 28px;
+  border: 1px solid var(--green);
+  background: #090909;
+  padding: 18px 20px;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+.sys-tag {
+  margin: 0;
+  color: var(--text-dim);
+  letter-spacing: 0.07em;
+}
+
+.app-header h1 {
+  margin: 10px 0;
+  font-size: clamp(1.15rem, 2.4vw, 1.8rem);
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+}
+
+.sys-subtitle {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.command-form {
+  max-width: 1000px;
+  margin: 0 auto 32px;
+  border: 1px solid var(--green);
+  background: #070707;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.28);
+}
+
+.command-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.command-form input,
+.command-form select,
+.command-form button {
+  appearance: none;
+  border: 1px solid var(--green);
+  background: #0d0d0d;
+  color: var(--green);
+  font-family: inherit;
+  font-size: 0.9rem;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.command-form input::placeholder {
+  color: #63ad75;
+}
+
+.command-form button {
+  cursor: pointer;
+  transition: background-color 120ms linear, color 120ms linear;
+}
+
+.command-form button:hover:not(:disabled) {
+  background: var(--green);
+  color: #021105;
+}
+
+.command-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.widget-grid {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 18px;
+}
+
+.ios-widget {
+  position: relative;
+  border-radius: 30px;
+  background: var(--widget-bg);
+  border: 1px solid var(--green);
+  padding: 18px;
+  min-height: 190px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 255, 65, 0.2),
+    0 0 14px rgba(0, 255, 65, 0.28);
+}
+
+.ios-widget::after {
+  content: '';
+  position: absolute;
+  width: 38%;
+  height: 4px;
+  left: 31%;
+  top: 8px;
+  border-radius: 999px;
+  background: rgba(0, 255, 65, 0.55);
+}
+
+.widget-amber {
+  border-color: var(--amber);
+  color: var(--amber);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 191, 0, 0.23),
+    0 0 14px rgba(255, 191, 0, 0.26);
+}
+
+.widget-amber::after {
+  background: rgba(255, 191, 0, 0.62);
+}
+
+.widget-amber .widget-count {
+  text-shadow: 0 0 7px rgba(255, 191, 0, 0.9);
+}
+
+.widget-status,
+.widget-unit,
+.widget-date {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.command-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.widget-status,
+.widget-date {
+  opacity: 0.84;
+}
+
+.widget-count {
+  margin: 4px 0 0;
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  font-weight: 700;
+  line-height: 0.95;
+  text-shadow: 0 0 7px rgba(0, 255, 65, 0.92);
+}
+
+.widget-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.widget-btn {
+  appearance: none;
+  border: 1px solid currentColor;
+  background: #090909;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 6px 8px;
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.widget-btn:hover:not(:disabled) {
+  background: currentColor;
+  color: #000000;
+}
+
+.widget-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.widget-btn-delete {
+  border-color: #ff4d4d;
+  color: #ff4d4d;
+}
+
+.widget-btn-delete:hover {
+  background: #ff4d4d;
+  color: #000000;
+}
+
+.widget-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.widget-edit-form label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.66rem;
+  opacity: 0.9;
+}
+
+.widget-edit-form input,
+.widget-edit-form select {
+  appearance: none;
+  border: 1px solid currentColor;
+  background: #0d0d0d;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.75rem;
+  min-height: 34px;
+  padding: 5px 7px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 900px) {
+  .command-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .app-shell {
+    padding: 18px 12px 36px;
+  }
+
+  .command-form {
+    grid-template-columns: 1fr;
+  }
+
+  .ios-widget {
+    min-height: 175px;
+  }
+}
