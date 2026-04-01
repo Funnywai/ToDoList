@@ -30,16 +30,27 @@ function getTodayIsoMonth() {
   return `${year}-${month}`
 }
 
-function toDaysLeftLabel(daysLeft) {
-  if (daysLeft === 0) {
-    return 'due today'
+function getTodayIsoDate() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function shiftIsoMonth(isoMonth, monthOffset) {
+  const [yearString, monthString] = isoMonth.split('-')
+  const year = Number(yearString)
+  const month = Number(monthString)
+
+  if (!yearString || !monthString || Number.isNaN(year) || Number.isNaN(month)) {
+    return getTodayIsoMonth()
   }
 
-  if (daysLeft === 1) {
-    return '1 day left'
-  }
-
-  return `${daysLeft} days left`
+  const shiftedDate = new Date(year, month - 1 + monthOffset, 1)
+  const shiftedYear = shiftedDate.getFullYear()
+  const shiftedMonth = String(shiftedDate.getMonth() + 1).padStart(2, '0')
+  return `${shiftedYear}-${shiftedMonth}`
 }
 
 function toWidgetList(firebaseData) {
@@ -69,6 +80,7 @@ function toWidgetList(firebaseData) {
 function App() {
   const [calendarMonth, setCalendarMonth] = useState(getTodayIsoMonth())
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
   const [form, setForm] = useState({
     label: '',
     deadline: '',
@@ -136,6 +148,7 @@ function App() {
     const firstDayIndex = new Date(year, month - 1, 1).getDay()
     const dayCount = new Date(year, month, 0).getDate()
     const calendarCells = []
+    const todayIsoDate = getTodayIsoDate()
 
     for (let index = 0; index < firstDayIndex; index += 1) {
       calendarCells.push({
@@ -153,6 +166,7 @@ function App() {
         isCurrentMonth: true,
         day,
         isoDate,
+        isToday: isoDate === todayIsoDate,
         tasks: calendarTaskMap[isoDate] ?? [],
       })
     }
@@ -181,6 +195,32 @@ function App() {
       year: 'numeric',
     })
   }, [calendarMonth])
+
+  const selectedCalendarTasks = useMemo(() => {
+    if (!selectedCalendarDate) {
+      return []
+    }
+
+    return calendarTaskMap[selectedCalendarDate] ?? []
+  }, [calendarTaskMap, selectedCalendarDate])
+
+  const selectedCalendarDateLabel = useMemo(() => {
+    if (!selectedCalendarDate) {
+      return ''
+    }
+
+    const date = new Date(`${selectedCalendarDate}T00:00:00`)
+    if (Number.isNaN(date.getTime())) {
+      return selectedCalendarDate
+    }
+
+    return date.toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }, [selectedCalendarDate])
 
   useEffect(() => {
     let isDisposed = false
@@ -320,14 +360,30 @@ function App() {
 
   const handleCalendarMonthChange = (event) => {
     setCalendarMonth(event.target.value || getTodayIsoMonth())
+    setSelectedCalendarDate('')
+  }
+
+  const handleShiftCalendarMonth = (monthOffset) => {
+    setCalendarMonth((currentMonth) => shiftIsoMonth(currentMonth, monthOffset))
+    setSelectedCalendarDate('')
+  }
+
+  const handleJumpToCurrentMonth = () => {
+    const todayIsoMonth = getTodayIsoMonth()
+    const todayIsoDate = getTodayIsoDate()
+    setCalendarMonth(todayIsoMonth)
+    setSelectedCalendarDate(todayIsoDate)
   }
 
   const handleOpenCalendar = () => {
+    const todayIsoDate = getTodayIsoDate()
     setIsCalendarOpen(true)
+    setSelectedCalendarDate(todayIsoDate.startsWith(`${calendarMonth}-`) ? todayIsoDate : '')
   }
 
   const handleCloseCalendar = () => {
     setIsCalendarOpen(false)
+    setSelectedCalendarDate('')
   }
 
   const handleSaveEdit = async (id) => {
@@ -377,137 +433,174 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="app-header">
-        <p className="sys-tag">[SYS_TIME_LEFT]</p>
-        <h1>&gt; launch_countdown_widgets.exe</h1>
-        <p className="sys-subtitle">
-          Build deadline widgets and monitor days remaining like a terminal feed.
-        </p>
-      </header>
-
-      <section className="create-bar" aria-label="Create widget controls">
-        <p className={`sync-status${syncError ? ' sync-status-error' : ''}`}>
-          {isSyncLoading
-            ? '[SYNC_LOADING_REMOTE_DATABASE]'
-            : syncError
-              ? `[SYNC_ERROR] ${syncError}`
-              : '[SYNC_REMOTE_DATABASE_CONNECTED]'}
-        </p>
-        {!isCreateOpen ? (
-          <button type="button" className="create-toggle-btn" onClick={handleOpenCreate}>
-            &gt; open_create_widget()
-          </button>
-        ) : (
-          <form className="command-form command-form-minimal" onSubmit={handleAddWidget}>
-            <p className="form-mode">[MINIMAL_CREATE_MODE]</p>
-            <label>
-              &gt; widget_name
-              <input
-                name="label"
-                value={form.label}
-                onChange={handleFormChange}
-                placeholder="CENG3420 Lab"
-              />
-            </label>
-
-            <label>
-              &gt; deadline_yyyy_mm_dd
-              <input
-                name="deadline"
-                type="date"
-                value={form.deadline}
-                onChange={handleFormChange}
-              />
-            </label>
-
-            <div className="create-actions">
-              <button type="submit" disabled={!canCreate}>
-                &gt; create_widget()
-              </button>
-              <button type="button" onClick={handleCloseCreate}>
-                &gt; close_create()
-              </button>
+      {isCalendarOpen ? (
+        <section className="calendar-page" aria-label="Calendar task lookup">
+          <div className="calendar-header">
+            <div>
+              <p className="calendar-title">[MONTH_CALENDAR_OVERVIEW]</p>
+              <p className="calendar-month-label">{calendarMonthLabel}</p>
             </div>
-          </form>
-        )}
-      </section>
-
-      <section className="calendar-panel" aria-label="Calendar task lookup">
-        {!isCalendarOpen ? (
-          <button type="button" className="create-toggle-btn" onClick={handleOpenCalendar}>
-            &gt; open_calendar()
-          </button>
-        ) : (
-          <>
-            <div className="calendar-header">
-              <div>
-                <p className="calendar-title">[MONTH_CALENDAR_OVERVIEW]</p>
-                <p className="calendar-month-label">{calendarMonthLabel}</p>
-              </div>
+            <div className="calendar-controls">
               <label className="calendar-input-label">
                 &gt; pick_month
-                <input
-                  type="month"
-                  value={calendarMonth}
-                  onChange={handleCalendarMonthChange}
-                  className="calendar-input"
-                />
+                <div className="calendar-month-picker">
+                  <button
+                    type="button"
+                    className="calendar-month-nav-btn"
+                    onClick={() => handleShiftCalendarMonth(-1)}
+                    aria-label="Previous month"
+                  >
+                    &lt;
+                  </button>
+                  <input
+                    type="month"
+                    value={calendarMonth}
+                    onChange={handleCalendarMonthChange}
+                    className="calendar-input"
+                  />
+                  <button
+                    type="button"
+                    className="calendar-month-nav-btn"
+                    onClick={() => handleShiftCalendarMonth(1)}
+                    aria-label="Next month"
+                  >
+                    &gt;
+                  </button>
+                </div>
               </label>
-            </div>
-
-            <div className="calendar-grid-scroll" aria-live="polite">
-              <div className="calendar-grid" role="grid" aria-label={`Calendar for ${calendarMonthLabel}`}>
-                {CALENDAR_WEEK_DAYS.map((dayName) => (
-                  <p key={dayName} className="calendar-weekday" role="columnheader">
-                    {dayName}
-                  </p>
-                ))}
-                {calendarDays.map((dayCell) =>
-                  dayCell.isCurrentMonth ? (
-                    <article
-                      key={dayCell.key}
-                      className={`calendar-day${dayCell.tasks.length > 0 ? ' calendar-day-has-tasks' : ''}`}
-                      role="gridcell"
-                    >
-                      <p className="calendar-day-number">{dayCell.day}</p>
-                      {dayCell.tasks.length === 0 ? (
-                        <p className="calendar-day-empty-text">no tasks</p>
-                      ) : (
-                        <ul className="calendar-day-task-list">
-                          {dayCell.tasks.map((task) => (
-                            <li
-                              key={`calendar-${dayCell.isoDate}-${task.id}`}
-                              className="calendar-day-task-item"
-                            >
-                              <span className="calendar-day-task-name">&gt; {toCommandName(task.label)}</span>
-                              <span className="calendar-day-task-days">{toDaysLeftLabel(task.daysLeft)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </article>
-                  ) : (
-                    <div
-                      key={dayCell.key}
-                      className="calendar-day calendar-day-empty"
-                      role="presentation"
-                      aria-hidden="true"
-                    />
-                  ),
-                )}
-              </div>
-            </div>
-
-            <div className="calendar-actions">
-              <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseCalendar}>
-                &gt; close_calendar()
+              <button type="button" className="calendar-now-btn" onClick={handleJumpToCurrentMonth}>
+                &gt; current_month()
               </button>
             </div>
-          </>
-        )}
-      </section>
+          </div>
 
-      <section className="widget-grid">
+          <div className="calendar-grid-scroll" aria-live="polite">
+            <div className="calendar-grid" role="grid" aria-label={`Calendar for ${calendarMonthLabel}`}>
+              {CALENDAR_WEEK_DAYS.map((dayName) => (
+                <p key={dayName} className="calendar-weekday" role="columnheader">
+                  {dayName}
+                </p>
+              ))}
+              {calendarDays.map((dayCell) =>
+                dayCell.isCurrentMonth ? (
+                  <button
+                    key={dayCell.key}
+                    type="button"
+                    className={`calendar-day${dayCell.tasks.length > 0 ? ' calendar-day-has-tasks' : ''}${
+                      dayCell.isToday ? ' calendar-day-today' : ''
+                    }${selectedCalendarDate === dayCell.isoDate ? ' calendar-day-selected' : ''}`}
+                    onClick={() => setSelectedCalendarDate(dayCell.isoDate)}
+                    role="gridcell"
+                    aria-label={`${dayCell.isoDate} ${dayCell.tasks.length} tasks`}
+                  >
+                    <p className="calendar-day-number">{dayCell.day}</p>
+                    <p className="calendar-day-job-count">
+                      {dayCell.tasks.length === 0
+                        ? 'No Task'
+                        : `${dayCell.tasks.length} ${dayCell.tasks.length === 1 ? 'task' : 'tasks'}`}
+                    </p>
+                  </button>
+                ) : (
+                  <div
+                    key={dayCell.key}
+                    className="calendar-day calendar-day-empty"
+                    role="presentation"
+                    aria-hidden="true"
+                  />
+                ),
+              )}
+            </div>
+          </div>
+
+          <section className="calendar-details" aria-live="polite">
+            <p className="calendar-details-title">
+              {selectedCalendarDate
+                ? `[TASKS_ON] ${selectedCalendarDateLabel}`
+                : '[TASKS_ON] select a day to view tasks'}
+            </p>
+            {selectedCalendarDate && selectedCalendarTasks.length === 0 ? (
+              <p className="calendar-day-empty-text">no tasks</p>
+            ) : selectedCalendarDate ? (
+              <ul className="calendar-details-list">
+                {selectedCalendarTasks.map((task) => (
+                  <li key={`detail-${selectedCalendarDate}-${task.id}`} className="calendar-details-item">
+                    &gt; {toCommandName(task.label)}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+
+          <div className="calendar-actions">
+            <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseCalendar}>
+              &gt; close_calendar()
+            </button>
+          </div>
+        </section>
+      ) : (
+        <>
+          <header className="app-header">
+            <p className="sys-tag">[SYS_TIME_LEFT]</p>
+            <h1>&gt; launch_countdown_widgets.exe</h1>
+            <p className="sys-subtitle">
+              Build deadline widgets and monitor days remaining like a terminal feed.
+            </p>
+          </header>
+
+          <section className="create-bar" aria-label="Create widget controls">
+            <p className={`sync-status${syncError ? ' sync-status-error' : ''}`}>
+              {isSyncLoading
+                ? '[SYNC_LOADING_REMOTE_DATABASE]'
+                : syncError
+                  ? `[SYNC_ERROR] ${syncError}`
+                  : '[SYNC_REMOTE_DATABASE_CONNECTED]'}
+            </p>
+            {!isCreateOpen ? (
+              <button type="button" className="create-toggle-btn" onClick={handleOpenCreate}>
+                &gt; open_create_widget()
+              </button>
+            ) : (
+              <form className="command-form command-form-minimal" onSubmit={handleAddWidget}>
+                <p className="form-mode">[MINIMAL_CREATE_MODE]</p>
+                <label>
+                  &gt; widget_name
+                  <input
+                    name="label"
+                    value={form.label}
+                    onChange={handleFormChange}
+                    placeholder="CENG3420 Lab"
+                  />
+                </label>
+
+                <label>
+                  &gt; deadline_yyyy_mm_dd
+                  <input
+                    name="deadline"
+                    type="date"
+                    value={form.deadline}
+                    onChange={handleFormChange}
+                  />
+                </label>
+
+                <div className="create-actions">
+                  <button type="submit" disabled={!canCreate}>
+                    &gt; create_widget()
+                  </button>
+                  <button type="button" onClick={handleCloseCreate}>
+                    &gt; close_create()
+                  </button>
+                </div>
+              </form>
+            )}
+          </section>
+
+          <section className="calendar-panel" aria-label="Calendar task lookup">
+            <button type="button" className="create-toggle-btn" onClick={handleOpenCalendar}>
+              &gt; open_calendar()
+            </button>
+          </section>
+
+          <section className="widget-grid">
         {preparedWidgets.length === 0 && !isSyncLoading ? (
           <article className="ios-widget" aria-label="No countdown widgets">
             <p className="command-title">&gt; no_widgets_found</p>
@@ -613,7 +706,9 @@ function App() {
             )
           })
         )}
-      </section>
+          </section>
+        </>
+      )}
     </main>
   )
 }
