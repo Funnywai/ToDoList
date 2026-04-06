@@ -20,7 +20,7 @@ function getDaysLeft(deadline) {
 }
 
 function toCommandName(label) {
-  return label.trim().replace(/\s+/g, '_')
+  return label.trim().replace(/\s+/g, ' ')
 }
 
 function getTodayIsoMonth() {
@@ -539,13 +539,6 @@ function App() {
         </section>
       ) : (
         <>
-          <header className="app-header">
-            <p className="sys-tag">[SYS_TIME_LEFT]</p>
-            <h1>&gt; launch_countdown_widgets.exe</h1>
-            <p className="sys-subtitle">
-              Build deadline widgets and monitor days remaining like a terminal feed.
-            </p>
-          </header>
 
           <section className="create-bar" aria-label="Create widget controls">
             <p className={`sync-status${syncError ? ' sync-status-error' : ''}`}>
@@ -603,7 +596,10 @@ function App() {
           <section className="widget-grid">
         {preparedWidgets.length === 0 && !isSyncLoading ? (
           <article className="ios-widget" aria-label="No countdown widgets">
-            <p className="command-title">&gt; no_widgets_found</p>
+            <p className="command-title">
+              <span className="command-prefix">&gt;</span>
+              <span className="command-title-text">no_widgets_found</span>
+            </p>
             <p className="widget-status">[REMOTE_DATABASE_EMPTY]</p>
             <p className="widget-date">create your first deadline to begin tracking.</p>
           </article>
@@ -673,7 +669,10 @@ function App() {
                 <>
                   <div className="widget-top-row">
                     <div className="widget-meta">
-                      <p className="command-title">&gt; {toCommandName(widget.label)}</p>
+                      <p className="command-title">
+                        <span className="command-prefix">&gt;</span>
+                        <span className="command-title-text">{toCommandName(widget.label)}</span>
+                      </p>
                       <p className="widget-date">target: {widget.deadline}</p>
                     </div>
                     <div className="widget-time-right">
