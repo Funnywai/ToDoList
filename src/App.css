@@ -677,6 +677,16 @@
   color: #000000;
 }
 
+.widget-btn-done {
+  border-color: #00ff41;
+  color: #00ff41;
+}
+
+.widget-btn-done:hover {
+  background: #00ff41;
+  color: #000000;
+}
+
 .widget-edit-form {
   display: grid;
   gap: 8px;

@@ -64,8 +64,11 @@ function toWidgetList(firebaseData) {
         id: String(index),
         label: item?.label,
         deadline: item?.deadline,
+        done: item?.done === true || item?.completed === true || item?.status === 'done',
       }))
-      .filter((item) => typeof item.label === 'string' && typeof item.deadline === 'string')
+      .filter(
+        (item) => typeof item.label === 'string' && typeof item.deadline === 'string',
+      )
   }
 
   return Object.entries(firebaseData)
@@ -73,6 +76,7 @@ function toWidgetList(firebaseData) {
       id,
       label: item?.label,
       deadline: item?.deadline,
+      done: item?.done === true || item?.completed === true || item?.status === 'done',
     }))
     .filter((item) => typeof item.label === 'string' && typeof item.deadline === 'string')
 }
@@ -106,7 +110,7 @@ function App() {
           ...widget,
           daysLeft: getDaysLeft(widget.deadline),
         }))
-        .filter((widget) => widget.daysLeft >= 0)
+        .filter((widget) => !widget.done && widget.daysLeft >= 0)
         .sort((a, b) => normalizeDate(a.deadline) - normalizeDate(b.deadline)),
     [widgets],
   )
@@ -345,6 +349,39 @@ function App() {
     }
   }
 
+  const handleMarkDone = async (widget) => {
+    setSyncError('')
+
+    try {
+      const response = await fetch(`${FIREBASE_DEADLINES_ENDPOINT}/${widget.id}.json`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          label: widget.label,
+          deadline: widget.deadline,
+          done: true,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('done_failed')
+      }
+
+      setWidgets((current) =>
+        current.map((currentWidget) =>
+          currentWidget.id === widget.id ? { ...currentWidget, done: true } : currentWidget,
+        ),
+      )
+      if (editingId === widget.id) {
+        setEditingId(null)
+      }
+    } catch {
+      setSyncError('unable_to_mark_deadline_done')
+    }
+  }
+
   const handleStartEdit = (widget) => {
     setEditingId(widget.id)
     setEditForm({
@@ -391,9 +428,11 @@ function App() {
       return
     }
 
+    const currentWidget = widgets.find((widget) => widget.id === id)
     const payload = {
       label: editForm.label.trim(),
       deadline: editForm.deadline,
+      done: Boolean(currentWidget?.done),
     }
 
     setSyncError('')
@@ -658,6 +697,13 @@ function App() {
                     </button>
                     <button
                       type="button"
+                      className="widget-btn widget-btn-done"
+                      onClick={() => handleMarkDone(widget)}
+                    >
+                      done
+                    </button>
+                    <button
+                      type="button"
                       className="widget-btn widget-btn-delete"
                       onClick={() => handleDeleteWidget(widget.id)}
                     >
@@ -690,6 +736,13 @@ function App() {
                       onClick={() => handleStartEdit(widget)}
                     >
                       edit
+                    </button>
+                    <button
+                      type="button"
+                      className="widget-btn widget-btn-done"
+                      onClick={() => handleMarkDone(widget)}
+                    >
+                      done
                     </button>
                     <button
                       type="button"
