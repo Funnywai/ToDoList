@@ -53,7 +53,7 @@
   box-shadow: var(--shadow-card);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   backdrop-filter: blur(4px);
 }
 
@@ -61,6 +61,25 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 0 0 auto;
+}
+
+.app-header-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.app-header-welcome {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-logo {
@@ -115,19 +134,6 @@
   margin: 0 auto;
 }
 
-.user-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
-  padding: 12px 14px;
-  margin-bottom: 12px;
-}
-
-.user-info,
 .sync-status,
 .form-mode,
 .widget-status,
@@ -313,6 +319,19 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.panel-actions .create-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.panel-action-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 
 .secondary-btn {
@@ -1025,6 +1044,22 @@
 
   .app-header {
     padding: 12px;
+    gap: 10px;
+  }
+
+  .app-header-user {
+    gap: 6px;
+  }
+
+  .app-header-welcome {
+    font-size: 12px;
+    max-width: 120px;
+  }
+
+  .theme-toggle,
+  .logout-btn {
+    padding: 7px 9px;
+    font-size: 12px;
   }
 
   .command-form {
@@ -1040,7 +1075,19 @@
   }
 
   .panel-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .panel-actions .create-toggle-btn {
+    min-width: 0;
+    padding-inline: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .panel-action-icon {
+    width: 14px;
+    height: 14px;
   }
 
   .room-header-actions {

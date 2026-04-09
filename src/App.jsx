@@ -279,6 +279,42 @@ function toWidgetList(firebaseData) {
     .filter((item) => typeof item.label === 'string' && typeof item.deadline === 'string')
 }
 
+function CalendarActionIcon() {
+  return (
+    <svg className="panel-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M8 3.5v4M16 3.5v4M4 9h16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M8 13h3M8 16.5h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function DoneActionIcon() {
+  return (
+    <svg className="panel-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M8.5 12.5l2.2 2.2 4.8-5.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 3.5a8.5 8.5 0 1 0 8.5 8.5A8.5 8.5 0 0 0 12 3.5Z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  )
+}
+
+function RoomActionIcon() {
+  return (
+    <svg className="panel-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 20V6.5l8-3.5 8 3.5V20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M9 20v-5.5h6V20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M8 11h1.2M11.4 11h1.2M14.8 11H16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
@@ -1170,6 +1206,12 @@ function App() {
           </svg>
           <h1>ToDoList</h1>
         </div>
+        <div className="app-header-user">
+          <span className="app-header-welcome">Welcome, {currentUser}</span>
+          <button type="button" className="logout-btn" onClick={handleLogout}>
+            logout
+          </button>
+        </div>
         <button type="button" className="theme-toggle" onClick={handleThemeToggle}>
           {theme === 'light' ? 'Dark' : 'Light'}
         </button>
@@ -1596,15 +1638,6 @@ function App() {
       ) : (
         <>
 
-          <div className="user-header">
-            <div className="user-info">
-              <span className="user-name">Welcome, {currentUser}</span>
-            </div>
-            <button type="button" className="logout-btn" onClick={handleLogout}>
-              &gt; logout()
-            </button>
-          </div>
-
           {!isCreateOpen ? (
             <button
               type="button"
@@ -1666,13 +1699,16 @@ function App() {
           <section className="calendar-panel" aria-label="Calendar task lookup">
             <div className="panel-actions">
               <button type="button" className="create-toggle-btn" onClick={handleOpenCalendar}>
-                &gt; open_calendar()
+                <CalendarActionIcon />
+                calendar
               </button>
               <button type="button" className="create-toggle-btn secondary-btn" onClick={handleOpenDonePage}>
-                &gt; open_done_tasks()
+                <DoneActionIcon />
+                done_tasks
               </button>
               <button type="button" className="create-toggle-btn secondary-btn" onClick={handleOpenRoomPage}>
-                &gt; open_room_space()
+                <RoomActionIcon />
+                room_space
               </button>
             </div>
           </section>
