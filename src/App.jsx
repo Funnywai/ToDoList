@@ -5,11 +5,132 @@ import Login from './Login'
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 const FIREBASE_DATABASE_ENDPOINT =
   'https://todolist-database-aae1c-default-rtdb.firebaseio.com'
+const FIREBASE_ROOMS_ENDPOINT = `${FIREBASE_DATABASE_ENDPOINT}/rooms`
 const CALENDAR_WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function getUserDeadlinesEndpoint(username) {
   const userKey = encodeURIComponent(username.trim().toLowerCase())
   return `${FIREBASE_DATABASE_ENDPOINT}/users/${userKey}/deadlines`
+}
+
+function getRoomEndpoint(roomCode) {
+  return `${FIREBASE_ROOMS_ENDPOINT}/${encodeURIComponent(roomCode.trim().toUpperCase())}`
+}
+
+function normalizeRoomCode(value) {
+  return value.trim().toUpperCase().replace(/\s+/g, '')
+}
+
+function createRoomCode() {
+  return Math.random().toString(36).slice(2, 8).toUpperCase()
+}
+
+function toRoomMembers(roomData) {
+  const members = roomData?.members
+
+  if (!members) {
+    return []
+  }
+
+  if (Array.isArray(members)) {
+    return members.filter((member) => typeof member === 'string' && member.trim() !== '')
+  }
+
+  return Object.keys(members).filter((member) => typeof member === 'string' && member.trim() !== '')
+}
+
+async function findAvailableRoomCode() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const roomCode = createRoomCode()
+    const response = await fetch(`${getRoomEndpoint(roomCode)}.json`)
+    if (!response.ok) {
+      continue
+    }
+
+    const data = await response.json()
+    if (!data) {
+      return roomCode
+    }
+  }
+
+  return createRoomCode()
+}
+
+async function getRoomData(roomCode) {
+  const response = await fetch(`${getRoomEndpoint(roomCode)}.json`)
+  if (!response.ok) {
+    throw new Error('room_load_failed')
+  }
+
+  return response.json()
+}
+
+async function updateRoomMembers(roomCode, roomData, username) {
+  const nextMembers = {
+    ...(roomData?.members && !Array.isArray(roomData.members) ? roomData.members : {}),
+    [username]: {
+      joinedAt:
+        roomData?.members && !Array.isArray(roomData.members) && roomData.members[username]?.joinedAt
+          ? roomData.members[username].joinedAt
+          : new Date().toISOString(),
+    },
+  }
+
+  const nextRoomData = {
+    code: normalizeRoomCode(roomCode),
+    createdAt: roomData?.createdAt ?? new Date().toISOString(),
+    createdBy: roomData?.createdBy ?? username,
+    members: nextMembers,
+  }
+
+  const response = await fetch(`${getRoomEndpoint(roomCode)}.json`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(nextRoomData),
+  })
+
+  if (!response.ok) {
+    throw new Error('room_save_failed')
+  }
+
+  return nextRoomData
+}
+
+async function loadRoomTaskList(roomCode) {
+  const roomData = await getRoomData(roomCode)
+  if (!roomData) {
+    return { roomData: null, tasks: [] }
+  }
+
+  const members = toRoomMembers(roomData)
+
+  const memberTasks = await Promise.all(
+    members.map(async (memberName) => {
+      const response = await fetch(`${getUserDeadlinesEndpoint(memberName)}.json`)
+      if (!response.ok) {
+        return []
+      }
+
+      const data = await response.json()
+      return toWidgetList(data).map((task) => ({
+        ...task,
+        memberName,
+      }))
+    }),
+  )
+
+  return {
+    roomData,
+    tasks: memberTasks
+      .flat()
+      .map((task) => ({
+        ...task,
+        daysLeft: getDaysLeft(task.deadline),
+      }))
+      .sort((a, b) => normalizeDate(a.deadline) - normalizeDate(b.deadline)),
+  }
 }
 
 function normalizeDate(value) {
@@ -103,6 +224,9 @@ function App() {
         const userData = JSON.parse(user)
         setCurrentUser(userData.username)
         setIsAuthenticated(true)
+        const savedRoomCode = localStorage.getItem('activeRoomCode') ?? ''
+        setRoomCode(savedRoomCode)
+        setIsRoomPageOpen(Boolean(savedRoomCode))
       } catch {
         localStorage.removeItem('user')
         localStorage.removeItem('authToken')
@@ -114,19 +238,31 @@ function App() {
     setWidgets([])
     setCurrentUser(username)
     setIsAuthenticated(true)
+    const savedRoomCode = localStorage.getItem('activeRoomCode') ?? ''
+    setRoomCode(savedRoomCode)
+    setIsRoomPageOpen(Boolean(savedRoomCode))
   }
 
   const handleLogout = () => {
     localStorage.removeItem('user')
     localStorage.removeItem('authToken')
+    localStorage.removeItem('activeRoomCode')
     setWidgets([])
     setCurrentUser('')
     setIsAuthenticated(false)
+    setIsRoomPageOpen(false)
+    setRoomCode('')
+    setRoomCodeInput('')
+    setRoomTasks([])
+    setRoomMembers([])
+    setRoomStatus('')
+    setRoomError('')
   }
 
   const [calendarMonth, setCalendarMonth] = useState(getTodayIsoMonth())
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [isDonePageOpen, setIsDonePageOpen] = useState(false)
+  const [isRoomPageOpen, setIsRoomPageOpen] = useState(false)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
   const [form, setForm] = useState({
     label: '',
@@ -142,6 +278,13 @@ function App() {
   const [widgets, setWidgets] = useState([])
   const [isSyncLoading, setIsSyncLoading] = useState(true)
   const [syncError, setSyncError] = useState('')
+  const [roomCodeInput, setRoomCodeInput] = useState('')
+  const [roomCode, setRoomCode] = useState(() => localStorage.getItem('activeRoomCode') ?? '')
+  const [roomTasks, setRoomTasks] = useState([])
+  const [roomMembers, setRoomMembers] = useState([])
+  const [roomStatus, setRoomStatus] = useState('')
+  const [roomError, setRoomError] = useState('')
+  const [isRoomLoading, setIsRoomLoading] = useState(false)
   const userDeadlinesEndpoint = useMemo(() => {
     if (!currentUser.trim()) {
       return ''
@@ -339,6 +482,60 @@ function App() {
       isDisposed = true
     }
   }, [isAuthenticated, userDeadlinesEndpoint])
+
+  useEffect(() => {
+    if (!roomCode) {
+      setRoomTasks([])
+      setRoomMembers([])
+      setRoomStatus('')
+      setRoomError('')
+      setIsRoomLoading(false)
+      return undefined
+    }
+
+    let isDisposed = false
+
+    const loadRoom = async () => {
+      setIsRoomLoading(true)
+      setRoomError('')
+      setRoomStatus(`loading room ${roomCode}...`)
+
+      try {
+        const { roomData, tasks } = await loadRoomTaskList(roomCode)
+        if (isDisposed) {
+          return
+        }
+
+        if (!roomData) {
+          setRoomError('room_not_found')
+          setRoomCode('')
+          localStorage.removeItem('activeRoomCode')
+          return
+        }
+
+        setRoomMembers(toRoomMembers(roomData))
+        setRoomTasks(tasks)
+        setRoomStatus(`room ${normalizeRoomCode(roomCode)} loaded`)
+      } catch {
+        if (!isDisposed) {
+          setRoomError('unable_to_load_room_data')
+          setRoomTasks([])
+          setRoomMembers([])
+          setRoomStatus('')
+        }
+      } finally {
+        if (!isDisposed) {
+          setIsRoomLoading(false)
+        }
+      }
+    }
+
+    loadRoom()
+
+    return () => {
+      isDisposed = true
+    }
+  }, [roomCode])
 
   const handleFormChange = (event) => {
     const { name, value } = event.target
@@ -602,6 +799,112 @@ function App() {
     }
   }
 
+  const handleOpenRoomPage = () => {
+    setIsCalendarOpen(false)
+    setIsDonePageOpen(false)
+    setSelectedCalendarDate('')
+    setIsRoomPageOpen(true)
+  }
+
+  const handleCloseRoomPage = () => {
+    setIsRoomPageOpen(false)
+  }
+
+  const handleRoomCodeChange = (event) => {
+    setRoomCodeInput(event.target.value)
+  }
+
+  const handleCreateRoom = async () => {
+    if (!currentUser.trim()) {
+      return
+    }
+
+    setRoomError('')
+    setRoomStatus('creating room...')
+
+    try {
+      const roomCode = await findAvailableRoomCode()
+      await updateRoomMembers(roomCode, null, currentUser)
+      localStorage.setItem('activeRoomCode', roomCode)
+      setRoomCode(roomCode)
+      setRoomCodeInput('')
+      setIsRoomPageOpen(true)
+    } catch {
+      setRoomError('unable_to_create_room')
+      setRoomStatus('')
+    }
+  }
+
+  const handleJoinRoom = async (event) => {
+    event.preventDefault()
+
+    if (!currentUser.trim()) {
+      return
+    }
+
+    const nextRoomCode = normalizeRoomCode(roomCodeInput)
+    if (!nextRoomCode) {
+      setRoomError('room_code_required')
+      return
+    }
+
+    setRoomError('')
+    setRoomStatus(`joining room ${nextRoomCode}...`)
+
+    try {
+      const roomData = await getRoomData(nextRoomCode)
+      if (!roomData) {
+        setRoomError('room_not_found')
+        setRoomStatus('')
+        return
+      }
+
+      await updateRoomMembers(nextRoomCode, roomData, currentUser)
+      localStorage.setItem('activeRoomCode', nextRoomCode)
+      setRoomCode(nextRoomCode)
+      setRoomCodeInput('')
+      setIsRoomPageOpen(true)
+    } catch {
+      setRoomError('unable_to_join_room')
+      setRoomStatus('')
+    }
+  }
+
+  const handleRefreshRoom = async () => {
+    if (!roomCode) {
+      return
+    }
+
+    setRoomStatus(`refreshing room ${roomCode}...`)
+    setRoomError('')
+
+    try {
+      const { roomData, tasks } = await loadRoomTaskList(roomCode)
+      if (!roomData) {
+        setRoomError('room_not_found')
+        return
+      }
+
+      setRoomMembers(toRoomMembers(roomData))
+      setRoomTasks(tasks)
+      setRoomStatus(`room ${normalizeRoomCode(roomCode)} refreshed`)
+    } catch {
+      setRoomError('unable_to_refresh_room')
+      setRoomStatus('')
+    }
+  }
+
+  const handleLeaveRoom = () => {
+    localStorage.removeItem('activeRoomCode')
+    setRoomCode('')
+    setRoomCodeInput('')
+    setRoomTasks([])
+    setRoomMembers([])
+    setRoomStatus('')
+    setRoomError('')
+    setIsRoomPageOpen(false)
+  }
+
   const handleThemeToggle = () => {
     setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'))
   }
@@ -633,7 +936,121 @@ function App() {
       </header>
 
       <div className="app-content">
-      {isCalendarOpen ? (
+      {isRoomPageOpen ? (
+        <section className="room-page" aria-label="Room task overview">
+          <div className="room-header">
+            <div>
+              <p className="room-title">[ROOM_OVERVIEW]</p>
+              <p className="room-heading">{roomCode ? `Room ${roomCode}` : 'Create or join a room'}</p>
+              <p className="room-subtitle">
+                Shared rooms combine the deadlines from everyone in the room.
+              </p>
+            </div>
+            <div className="room-header-actions">
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={handleRefreshRoom}
+                disabled={!roomCode || isRoomLoading}
+              >
+                &gt; refresh_room()
+              </button>
+              <button type="button" className="secondary-btn" onClick={handleLeaveRoom}>
+                &gt; leave_room()
+              </button>
+            </div>
+          </div>
+
+          {!roomCode ? (
+            <div className="room-grid">
+              <article className="room-card" aria-label="Create room">
+                <p className="room-card-title">[CREATE_ROOM]</p>
+                <p className="room-card-copy">
+                  Start a shared room, then send the code to the people you want to collaborate with.
+                </p>
+                <button type="button" className="create-toggle-btn" onClick={handleCreateRoom}>
+                  &gt; create_room()
+                </button>
+              </article>
+
+              <article className="room-card" aria-label="Join room">
+                <p className="room-card-title">[ENTER_ROOM_CODE]</p>
+                <form className="room-join-form" onSubmit={handleJoinRoom}>
+                  <label>
+                    &gt; room_code
+                    <input
+                      value={roomCodeInput}
+                      onChange={handleRoomCodeChange}
+                      placeholder="ABC123"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <button type="submit" className="create-toggle-btn">
+                    &gt; enter_room()
+                  </button>
+                </form>
+              </article>
+            </div>
+          ) : (
+            <>
+              <section className="room-summary" aria-live="polite">
+                <div className="room-summary-row">
+                  <span className="room-pill">code {roomCode}</span>
+                  <span className="room-pill">members {roomMembers.length}</span>
+                </div>
+                <p className={`room-status${roomError ? ' sync-status-error' : ''}`}>
+                  {isRoomLoading
+                    ? '[ROOM_LOADING]'
+                    : roomError
+                      ? `[ROOM_ERROR] ${roomError}`
+                      : roomStatus || '[ROOM_READY]' }
+                </p>
+                {roomMembers.length > 0 ? (
+                  <p className="room-members-label">
+                    members: {roomMembers.map((member) => member).join(', ')}
+                  </p>
+                ) : null}
+              </section>
+
+              <section className="room-task-list" aria-label="Room deadlines">
+                {roomTasks.length === 0 && !isRoomLoading ? (
+                  <article className="room-empty-state">
+                    <p className="command-title">No shared tasks yet.</p>
+                    <p className="widget-status">Add deadlines to any room member to see them here.</p>
+                  </article>
+                ) : (
+                  roomTasks.map((task) => (
+                    <article key={`${task.memberName}-${task.id}`} className="room-task-item">
+                      <div className="room-task-main">
+                        <p className="command-title">
+                          <span className="command-prefix">&gt;</span>
+                          <span className="command-title-text">{toCommandName(task.label)}</span>
+                        </p>
+                        <p className="widget-date">member: {task.memberName}</p>
+                        <p className="widget-date">deadline: {task.deadline}</p>
+                      </div>
+                      <div className="room-task-meta">
+                        <span className="room-task-badge">{task.done ? 'done' : 'active'}</span>
+                        <div className="widget-count-row">
+                          <p className="widget-count">{task.daysLeft}</p>
+                          <p className="widget-unit">DAYS</p>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </section>
+            </>
+          )}
+
+          <div className="calendar-actions">
+            <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseRoomPage}>
+              &gt; close_room_page()
+            </button>
+          </div>
+        </section>
+      ) : isCalendarOpen ? (
         <section className="calendar-page" aria-label="Calendar task lookup">
           <div className="calendar-header">
             <div>
@@ -862,6 +1279,9 @@ function App() {
               </button>
               <button type="button" className="create-toggle-btn secondary-btn" onClick={handleOpenDonePage}>
                 &gt; open_done_tasks()
+              </button>
+              <button type="button" className="create-toggle-btn secondary-btn" onClick={handleOpenRoomPage}>
+                &gt; open_room_space()
               </button>
             </div>
           </section>

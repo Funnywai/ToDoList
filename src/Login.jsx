@@ -36,7 +36,7 @@ export default function Login({ onLogin }) {
 
     try {
       // Authenticate with database
-      const user = await authenticateUser(username, password)
+      await authenticateUser(username, password)
 
       // Store user data in localStorage
       const userData = {
