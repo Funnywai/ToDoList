@@ -3,9 +3,14 @@ import './App.css'
 import Login from './Login'
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24
-const FIREBASE_DEADLINES_ENDPOINT =
-  'https://todolist-database-aae1c-default-rtdb.firebaseio.com/deadlines'
+const FIREBASE_DATABASE_ENDPOINT =
+  'https://todolist-database-aae1c-default-rtdb.firebaseio.com'
 const CALENDAR_WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function getUserDeadlinesEndpoint(username) {
+  const userKey = encodeURIComponent(username.trim().toLowerCase())
+  return `${FIREBASE_DATABASE_ENDPOINT}/users/${userKey}/deadlines`
+}
 
 function normalizeDate(value) {
   const date = new Date(value)
@@ -106,6 +111,7 @@ function App() {
   }, [])
 
   const handleLogin = (username) => {
+    setWidgets([])
     setCurrentUser(username)
     setIsAuthenticated(true)
   }
@@ -113,6 +119,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('user')
     localStorage.removeItem('authToken')
+    setWidgets([])
     setCurrentUser('')
     setIsAuthenticated(false)
   }
@@ -135,6 +142,13 @@ function App() {
   const [widgets, setWidgets] = useState([])
   const [isSyncLoading, setIsSyncLoading] = useState(true)
   const [syncError, setSyncError] = useState('')
+  const userDeadlinesEndpoint = useMemo(() => {
+    if (!currentUser.trim()) {
+      return ''
+    }
+
+    return getUserDeadlinesEndpoint(currentUser)
+  }, [currentUser])
 
   const canCreate = form.label.trim() !== '' && form.deadline !== ''
   const canSaveEdit = editForm.label.trim() !== '' && editForm.deadline !== ''
@@ -282,6 +296,13 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated) {
       setIsSyncLoading(false)
+      setWidgets([])
+      return undefined
+    }
+
+    if (!userDeadlinesEndpoint) {
+      setIsSyncLoading(false)
+      setWidgets([])
       return undefined
     }
 
@@ -292,7 +313,7 @@ function App() {
       setSyncError('')
 
       try {
-        const response = await fetch(`${FIREBASE_DEADLINES_ENDPOINT}.json`)
+        const response = await fetch(`${userDeadlinesEndpoint}.json`)
         if (!response.ok) {
           throw new Error('load_failed')
         }
@@ -317,7 +338,7 @@ function App() {
     return () => {
       isDisposed = true
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, userDeadlinesEndpoint])
 
   const handleFormChange = (event) => {
     const { name, value } = event.target
@@ -326,7 +347,7 @@ function App() {
 
   const handleAddWidget = async (event) => {
     event.preventDefault()
-    if (!canCreate) {
+    if (!canCreate || !userDeadlinesEndpoint) {
       return
     }
 
@@ -338,7 +359,7 @@ function App() {
     setSyncError('')
 
     try {
-      const response = await fetch(`${FIREBASE_DEADLINES_ENDPOINT}.json`, {
+      const response = await fetch(`${userDeadlinesEndpoint}.json`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -387,10 +408,14 @@ function App() {
   }
 
   const handleDeleteWidget = async (id) => {
+    if (!userDeadlinesEndpoint) {
+      return
+    }
+
     setSyncError('')
 
     try {
-      const response = await fetch(`${FIREBASE_DEADLINES_ENDPOINT}/${id}.json`, {
+      const response = await fetch(`${userDeadlinesEndpoint}/${id}.json`, {
         method: 'DELETE',
       })
 
@@ -408,10 +433,14 @@ function App() {
   }
 
   const handleMarkDone = async (widget) => {
+    if (!userDeadlinesEndpoint) {
+      return
+    }
+
     setSyncError('')
 
     try {
-      const response = await fetch(`${FIREBASE_DEADLINES_ENDPOINT}/${widget.id}.json`, {
+      const response = await fetch(`${userDeadlinesEndpoint}/${widget.id}.json`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -493,7 +522,7 @@ function App() {
   }
 
   const handleSaveEdit = async (id) => {
-    if (!canSaveEdit) {
+    if (!canSaveEdit || !userDeadlinesEndpoint) {
       return
     }
 
@@ -507,7 +536,7 @@ function App() {
     setSyncError('')
 
     try {
-      const response = await fetch(`${FIREBASE_DEADLINES_ENDPOINT}/${id}.json`, {
+      const response = await fetch(`${userDeadlinesEndpoint}/${id}.json`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -540,10 +569,14 @@ function App() {
   }
 
   const handleMarkUndone = async (widget) => {
+    if (!userDeadlinesEndpoint) {
+      return
+    }
+
     setSyncError('')
 
     try {
-      const response = await fetch(`${FIREBASE_DEADLINES_ENDPOINT}/${widget.id}.json`, {
+      const response = await fetch(`${userDeadlinesEndpoint}/${widget.id}.json`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
