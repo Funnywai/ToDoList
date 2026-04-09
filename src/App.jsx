@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+import Login from './Login'
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 const FIREBASE_DEADLINES_ENDPOINT =
@@ -82,6 +83,41 @@ function toWidgetList(firebaseData) {
 }
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [currentUser, setCurrentUser] = useState('')
+  
+  // Check if user is already logged in on component mount
+  useEffect(() => {
+    const user = localStorage.getItem('user')
+    if (user) {
+      try {
+        const userData = JSON.parse(user)
+        setCurrentUser(userData.username)
+        setIsAuthenticated(true)
+      } catch {
+        localStorage.removeItem('user')
+        localStorage.removeItem('authToken')
+      }
+    }
+  }, [])
+
+  const handleLogin = (username) => {
+    setCurrentUser(username)
+    setIsAuthenticated(true)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('user')
+    localStorage.removeItem('authToken')
+    setCurrentUser('')
+    setIsAuthenticated(false)
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />
+  }
+
   const [calendarMonth, setCalendarMonth] = useState(getTodayIsoMonth())
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
@@ -578,6 +614,15 @@ function App() {
         </section>
       ) : (
         <>
+
+          <div className="user-header">
+            <div className="user-info">
+              <span className="user-name">Welcome, {currentUser}</span>
+            </div>
+            <button type="button" className="logout-btn" onClick={handleLogout}>
+              &gt; logout()
+            </button>
+          </div>
 
           <section className="create-bar" aria-label="Create widget controls">
             <p className={`sync-status${syncError ? ' sync-status-error' : ''}`}>
