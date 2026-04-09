@@ -77,6 +77,7 @@
 .theme-toggle,
 .logout-btn,
 .create-toggle-btn,
+.floating-create-btn,
 .widget-btn,
 .command-form button,
 .calendar-month-nav-btn,
@@ -100,6 +101,7 @@
 .theme-toggle:hover,
 .logout-btn:hover,
 .create-toggle-btn:hover,
+.floating-create-btn:hover,
 .widget-btn:hover,
 .command-form button:hover,
 .calendar-month-nav-btn:hover,
@@ -177,6 +179,45 @@
   background: var(--accent);
   border-color: transparent;
   color: #f5fffe;
+}
+
+.floating-create-btn {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  border-color: transparent;
+  color: #f5fffe;
+  font-size: 34px;
+  line-height: 1;
+  padding: 0;
+  box-shadow:
+    0 10px 24px color-mix(in srgb, var(--accent), transparent 70%),
+    0 0 0 0 color-mix(in srgb, var(--accent), transparent 66%);
+  animation: floating-create-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes floating-create-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 10px 24px color-mix(in srgb, var(--accent), transparent 70%),
+      0 0 0 0 color-mix(in srgb, var(--accent), transparent 66%);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow:
+      0 12px 26px color-mix(in srgb, var(--accent), transparent 66%),
+      0 0 0 12px color-mix(in srgb, var(--accent), transparent 90%);
+  }
 }
 
 .command-form {
@@ -946,6 +987,14 @@
 @media (max-width: 720px) {
   .app-shell {
     padding: 10px 10px 136px;
+  }
+
+  .floating-create-btn {
+    right: 14px;
+    bottom: 14px;
+    width: 54px;
+    height: 54px;
+    font-size: 32px;
   }
 
   .app-header {

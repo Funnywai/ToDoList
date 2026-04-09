@@ -1586,19 +1586,24 @@ function App() {
             </button>
           </div>
 
-          <section className="create-bar" aria-label="Create widget controls">
-            <p className={`sync-status${syncError ? ' sync-status-error' : ''}`}>
-              {isSyncLoading
-                ? '[SYNC_LOADING_REMOTE_DATABASE]'
-                : syncError
-                  ? `[SYNC_ERROR] ${syncError}`
-                  : '[SYNC_REMOTE_DATABASE_CONNECTED]'}
-            </p>
-            {!isCreateOpen ? (
-              <button type="button" className="create-toggle-btn" onClick={handleOpenCreate}>
-                &gt; open_create_widget()
-              </button>
-            ) : (
+          {!isCreateOpen ? (
+            <button
+              type="button"
+              className="floating-create-btn"
+              onClick={handleOpenCreate}
+              aria-label="open create widget"
+            >
+              +
+            </button>
+          ) : (
+            <section className="create-bar" aria-label="Create widget controls">
+              <p className={`sync-status${syncError ? ' sync-status-error' : ''}`}>
+                {isSyncLoading
+                  ? '[SYNC_LOADING_REMOTE_DATABASE]'
+                  : syncError
+                    ? `[SYNC_ERROR] ${syncError}`
+                    : '[SYNC_REMOTE_DATABASE_CONNECTED]'}
+              </p>
               <form className="command-form command-form-minimal" onSubmit={handleAddWidget}>
                 <p className="form-mode">[MINIMAL_CREATE_MODE]</p>
                 <label>
@@ -1630,8 +1635,8 @@ function App() {
                   </button>
                 </div>
               </form>
-            )}
-          </section>
+            </section>
+          )}
 
           <section className="calendar-panel" aria-label="Calendar task lookup">
             <div className="panel-actions">
