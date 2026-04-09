@@ -7,6 +7,20 @@ const FIREBASE_DATABASE_ENDPOINT =
   'https://todolist-database-aae1c-default-rtdb.firebaseio.com'
 const FIREBASE_ROOMS_ENDPOINT = `${FIREBASE_DATABASE_ENDPOINT}/rooms`
 const CALENDAR_WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const ROOM_HIGHLIGHT_COLORS = [
+  { name: 'Teal', value: '#0f766e' },
+  { name: 'Sky', value: '#0284c7' },
+  { name: 'Blue', value: '#2563eb' },
+  { name: 'Green', value: '#15803d' },
+  { name: 'Amber', value: '#ca8a04' },
+  { name: 'Orange', value: '#c2410c' },
+  { name: 'Rose', value: '#be123c' },
+  { name: 'Slate', value: '#475569' },
+  { name: 'Cyan', value: '#0891b2' },
+  { name: 'Lime', value: '#4d7c0f' },
+  { name: 'Indigo', value: '#4338ca' },
+  { name: 'Red', value: '#dc2626' },
+]
 
 function getUserDeadlinesEndpoint(username) {
   const userKey = encodeURIComponent(username.trim().toLowerCase())
@@ -21,11 +35,19 @@ function normalizeRoomCode(value) {
   return value.trim().toUpperCase().replace(/\s+/g, '')
 }
 
+function normalizeRoomColor(value) {
+  return value.trim().toLowerCase()
+}
+
+function getFallbackRoomColor(index) {
+  return ROOM_HIGHLIGHT_COLORS[index % ROOM_HIGHLIGHT_COLORS.length]?.value ?? '#0f766e'
+}
+
 function createRoomCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase()
 }
 
-function toRoomMembers(roomData) {
+function getRoomMemberEntries(roomData) {
   const members = roomData?.members
 
   if (!members) {
@@ -33,10 +55,43 @@ function toRoomMembers(roomData) {
   }
 
   if (Array.isArray(members)) {
-    return members.filter((member) => typeof member === 'string' && member.trim() !== '')
+    return members
+      .filter((member) => typeof member === 'string' && member.trim() !== '')
+      .map((memberName, index) => ({
+        name: memberName,
+        color: getFallbackRoomColor(index),
+        joinedAt: '',
+      }))
   }
 
-  return Object.keys(members).filter((member) => typeof member === 'string' && member.trim() !== '')
+  return Object.entries(members)
+    .filter(([memberName]) => typeof memberName === 'string' && memberName.trim() !== '')
+    .map(([memberName, memberData], index) => ({
+      name: memberName,
+      color: memberData?.color ? normalizeRoomColor(memberData.color) : getFallbackRoomColor(index),
+      joinedAt: memberData?.joinedAt ?? '',
+    }))
+}
+
+function getTakenRoomColors(roomData, excludeUsername = '') {
+  const takenColors = new Set()
+
+  getRoomMemberEntries(roomData).forEach((member) => {
+    if (member.name === excludeUsername) {
+      return
+    }
+
+    if (member.color) {
+      takenColors.add(normalizeRoomColor(member.color))
+    }
+  })
+
+  return takenColors
+}
+
+function getAvailableRoomColors(roomData, excludeUsername = '') {
+  const takenColors = getTakenRoomColors(roomData, excludeUsername)
+  return ROOM_HIGHLIGHT_COLORS.filter((color) => !takenColors.has(normalizeRoomColor(color.value)))
 }
 
 async function findAvailableRoomCode() {
@@ -65,14 +120,27 @@ async function getRoomData(roomCode) {
   return response.json()
 }
 
-async function updateRoomMembers(roomCode, roomData, username) {
+async function updateRoomMembers(roomCode, roomData, username, color) {
+  const currentMembers = getRoomMemberEntries(roomData)
+  const existingMember = currentMembers.find((member) => member.name === username)
+  const nextColor = normalizeRoomColor(color || existingMember?.color || '')
+  const takenColors = getTakenRoomColors(roomData, username)
+
+  if (nextColor && takenColors.has(nextColor)) {
+    throw new Error('room_color_taken')
+  }
+
+  const resolvedColor = nextColor || getAvailableRoomColors(roomData, username)[0]?.value
+
+  if (!resolvedColor) {
+    throw new Error('room_color_unavailable')
+  }
+
   const nextMembers = {
     ...(roomData?.members && !Array.isArray(roomData.members) ? roomData.members : {}),
     [username]: {
-      joinedAt:
-        roomData?.members && !Array.isArray(roomData.members) && roomData.members[username]?.joinedAt
-          ? roomData.members[username].joinedAt
-          : new Date().toISOString(),
+      joinedAt: existingMember?.joinedAt || new Date().toISOString(),
+      color: resolvedColor,
     },
   }
 
@@ -101,13 +169,14 @@ async function updateRoomMembers(roomCode, roomData, username) {
 async function loadRoomTaskList(roomCode) {
   const roomData = await getRoomData(roomCode)
   if (!roomData) {
-    return { roomData: null, tasks: [] }
+    return { roomData: null, memberEntries: [], tasks: [] }
   }
 
-  const members = toRoomMembers(roomData)
+  const memberEntries = getRoomMemberEntries(roomData)
 
   const memberTasks = await Promise.all(
-    members.map(async (memberName) => {
+    memberEntries.map(async (member) => {
+      const memberName = member.name
       const response = await fetch(`${getUserDeadlinesEndpoint(memberName)}.json`)
       if (!response.ok) {
         return []
@@ -117,12 +186,14 @@ async function loadRoomTaskList(roomCode) {
       return toWidgetList(data).map((task) => ({
         ...task,
         memberName,
+        memberColor: member.color,
       }))
     }),
   )
 
   return {
     roomData,
+    memberEntries,
     tasks: memberTasks
       .flat()
       .map((task) => ({
@@ -255,6 +326,7 @@ function App() {
     setRoomCodeInput('')
     setRoomTasks([])
     setRoomMembers([])
+    setRoomColorChoice(ROOM_HIGHLIGHT_COLORS[0].value)
     setRoomStatus('')
     setRoomError('')
   }
@@ -284,6 +356,7 @@ function App() {
   const [roomCode, setRoomCode] = useState(() => localStorage.getItem('activeRoomCode') ?? '')
   const [roomTasks, setRoomTasks] = useState([])
   const [roomMembers, setRoomMembers] = useState([])
+  const [roomColorChoice, setRoomColorChoice] = useState(ROOM_HIGHLIGHT_COLORS[0].value)
   const [roomStatus, setRoomStatus] = useState('')
   const [roomError, setRoomError] = useState('')
   const [isRoomLoading, setIsRoomLoading] = useState(false)
@@ -320,6 +393,12 @@ function App() {
         }))
         .sort((a, b) => normalizeDate(b.deadline) - normalizeDate(a.deadline)),
     [widgets],
+  )
+
+  const activeRoomTasks = useMemo(
+    () =>
+      roomTasks.filter((task) => task.done !== true && task.daysLeft >= 0),
+    [roomTasks],
   )
 
   const calendarTaskMap = useMemo(() => {
@@ -410,7 +489,7 @@ function App() {
   const roomCalendarTaskMap = useMemo(() => {
     const taskMap = {}
 
-    roomTasks.forEach((task) => {
+    activeRoomTasks.forEach((task) => {
       if (!task.deadline.startsWith(`${roomCalendarMonth}-`)) {
         return
       }
@@ -423,7 +502,7 @@ function App() {
     })
 
     return taskMap
-  }, [roomTasks, roomCalendarMonth])
+  }, [activeRoomTasks, roomCalendarMonth])
 
   const roomCalendarDays = useMemo(() => {
     const [yearString, monthString] = roomCalendarMonth.split('-')
@@ -626,7 +705,12 @@ function App() {
           return
         }
 
-        setRoomMembers(toRoomMembers(roomData))
+        const memberEntries = getRoomMemberEntries(roomData)
+        setRoomMembers(memberEntries)
+        const currentMember = memberEntries.find((member) => member.name === currentUser)
+        if (currentMember?.color) {
+          setRoomColorChoice(currentMember.color)
+        }
         setRoomTasks(tasks)
         setRoomStatus(`room ${normalizeRoomCode(roomCode)} loaded`)
       } catch {
@@ -648,7 +732,7 @@ function App() {
     return () => {
       isDisposed = true
     }
-  }, [roomCode])
+  }, [roomCode, currentUser])
 
   const handleFormChange = (event) => {
     const { name, value } = event.target
@@ -918,6 +1002,7 @@ function App() {
     setSelectedCalendarDate('')
     setRoomCalendarMonth(getTodayIsoMonth())
     setSelectedRoomDate('')
+    setRoomColorChoice((currentColor) => currentColor || ROOM_HIGHLIGHT_COLORS[0].value)
     setIsRoomPageOpen(true)
   }
 
@@ -927,6 +1012,10 @@ function App() {
 
   const handleRoomCodeChange = (event) => {
     setRoomCodeInput(event.target.value)
+  }
+
+  const handleRoomColorSelect = (colorValue) => {
+    setRoomColorChoice(colorValue)
   }
 
   const handleRoomCalendarMonthChange = (event) => {
@@ -956,7 +1045,7 @@ function App() {
 
     try {
       const roomCode = await findAvailableRoomCode()
-      await updateRoomMembers(roomCode, null, currentUser)
+      await updateRoomMembers(roomCode, null, currentUser, roomColorChoice)
       localStorage.setItem('activeRoomCode', roomCode)
       setRoomCode(roomCode)
       setRoomCodeInput('')
@@ -993,15 +1082,19 @@ function App() {
         return
       }
 
-      await updateRoomMembers(nextRoomCode, roomData, currentUser)
+      await updateRoomMembers(nextRoomCode, roomData, currentUser, roomColorChoice)
       localStorage.setItem('activeRoomCode', nextRoomCode)
       setRoomCode(nextRoomCode)
       setRoomCodeInput('')
       setRoomCalendarMonth(getTodayIsoMonth())
       setSelectedRoomDate(getTodayIsoDate())
       setIsRoomPageOpen(true)
-    } catch {
-      setRoomError('unable_to_join_room')
+    } catch (error) {
+      if (error instanceof Error && error.message === 'room_color_taken') {
+        setRoomError('room_color_already_taken')
+      } else {
+        setRoomError('unable_to_join_room')
+      }
       setRoomStatus('')
     }
   }
@@ -1015,13 +1108,13 @@ function App() {
     setRoomError('')
 
     try {
-      const { roomData, tasks } = await loadRoomTaskList(roomCode)
+      const { roomData, memberEntries, tasks } = await loadRoomTaskList(roomCode)
       if (!roomData) {
         setRoomError('room_not_found')
         return
       }
 
-      setRoomMembers(toRoomMembers(roomData))
+      setRoomMembers(memberEntries)
       setRoomTasks(tasks)
       setRoomStatus(`room ${normalizeRoomCode(roomCode)} refreshed`)
     } catch {
@@ -1036,6 +1129,7 @@ function App() {
     setRoomCodeInput('')
     setRoomTasks([])
     setRoomMembers([])
+    setRoomColorChoice(ROOM_HIGHLIGHT_COLORS[0].value)
     setRoomStatus('')
     setRoomError('')
     setIsRoomPageOpen(false)
@@ -1098,6 +1192,36 @@ function App() {
           </div>
 
           {!roomCode ? (
+            <>
+              <section className="room-color-panel" aria-label="Room highlight color picker">
+                <div>
+                  <p className="room-card-title">[PICK_HIGHLIGHT_COLOR]</p>
+                  <p className="room-card-copy">
+                    Pick one highlight color for your room tasks. Each member must use a different color.
+                  </p>
+                </div>
+                <div className="room-color-picker">
+                  {ROOM_HIGHLIGHT_COLORS.map((color) => {
+                    const isSelected = normalizeRoomColor(roomColorChoice) === normalizeRoomColor(color.value)
+
+                    return (
+                      <button
+                        key={color.value}
+                        type="button"
+                        className={`room-color-swatch${isSelected ? ' room-color-swatch-selected' : ''}`}
+                        style={{ '--room-swatch-color': color.value }}
+                        onClick={() => handleRoomColorSelect(color.value)}
+                        aria-label={`${color.name} highlight color`}
+                        aria-pressed={isSelected}
+                      >
+                        <span className="room-color-swatch-dot" aria-hidden="true" />
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="room-color-note">The app blocks duplicate colors inside the same room.</p>
+              </section>
+
             <div className="room-grid">
               <article className="room-card" aria-label="Create room">
                 <p className="room-card-title">[CREATE_ROOM]</p>
@@ -1128,6 +1252,7 @@ function App() {
                 </form>
               </article>
             </div>
+            </>
           ) : (
             <>
               <section className="room-summary" aria-live="polite">
@@ -1143,9 +1268,18 @@ function App() {
                       : roomStatus || '[ROOM_READY]' }
                 </p>
                 {roomMembers.length > 0 ? (
-                  <p className="room-members-label">
-                    members: {roomMembers.map((member) => member).join(', ')}
-                  </p>
+                  <div className="room-member-legend" aria-label="Room member colors">
+                    {roomMembers.map((member) => (
+                      <span
+                        key={member.name}
+                        className="room-member-chip"
+                        style={{ '--room-member-accent': member.color }}
+                      >
+                        <span className="room-member-chip-dot" aria-hidden="true" />
+                        <span>{member.name}</span>
+                      </span>
+                    ))}
+                  </div>
                 ) : null}
               </section>
 
@@ -1207,6 +1341,7 @@ function App() {
                           onClick={() => setSelectedRoomDate(dayCell.isoDate)}
                           role="gridcell"
                           aria-label={`${dayCell.isoDate} ${dayCell.tasks.length} tasks`}
+                          style={{ '--room-day-accent': dayCell.tasks[0]?.memberColor ?? 'var(--accent)' }}
                         >
                           <p className="calendar-day-number">{dayCell.day}</p>
                           <p className="calendar-day-job-count">
@@ -1214,6 +1349,20 @@ function App() {
                               ? 'No Task'
                               : `${dayCell.tasks.length} ${dayCell.tasks.length === 1 ? 'task' : 'tasks'}`}
                           </p>
+                          {dayCell.tasks.length > 0 ? (
+                            <div className="room-day-color-dots" aria-hidden="true">
+                              {dayCell.tasks.slice(0, 4).map((task) => (
+                                <span
+                                  key={`${dayCell.isoDate}-${task.memberName}-${task.id}`}
+                                  className="room-day-color-dot"
+                                  style={{ '--room-task-accent': task.memberColor }}
+                                />
+                              ))}
+                              {dayCell.tasks.length > 4 ? (
+                                <span className="room-day-color-more">+{dayCell.tasks.length - 4}</span>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </button>
                       ) : (
                         <div
@@ -1238,8 +1387,15 @@ function App() {
                   ) : selectedRoomDate ? (
                     <ul className="calendar-details-list">
                       {selectedRoomTasks.map((task) => (
-                        <li key={`room-detail-${selectedRoomDate}-${task.memberName}-${task.id}`} className="calendar-details-item">
-                          &gt; {toCommandName(task.label)} ({task.memberName})
+                        <li
+                          key={`room-detail-${selectedRoomDate}-${task.memberName}-${task.id}`}
+                          className="calendar-details-item room-calendar-detail-item"
+                          style={{ '--room-task-accent': task.memberColor }}
+                        >
+                          <span className="room-detail-color-dot" aria-hidden="true" />
+                          <span>
+                            &gt; {toCommandName(task.label)} ({task.memberName})
+                          </span>
                         </li>
                       ))}
                     </ul>
