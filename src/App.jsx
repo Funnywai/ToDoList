@@ -85,6 +85,10 @@ function toWidgetList(firebaseData) {
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
+  const [theme, setTheme] = useState(() => {
+    const storedTheme = localStorage.getItem('theme')
+    return storedTheme === 'dark' ? 'dark' : 'light'
+  })
   
   // Check if user is already logged in on component mount
   useEffect(() => {
@@ -111,11 +115,6 @@ function App() {
     localStorage.removeItem('authToken')
     setCurrentUser('')
     setIsAuthenticated(false)
-  }
-
-  // Show login screen if not authenticated
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />
   }
 
   const [calendarMonth, setCalendarMonth] = useState(getTodayIsoMonth())
@@ -263,6 +262,16 @@ function App() {
   }, [selectedCalendarDate])
 
   useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setIsSyncLoading(false)
+      return undefined
+    }
+
     let isDisposed = false
 
     const loadWidgets = async () => {
@@ -295,7 +304,7 @@ function App() {
     return () => {
       isDisposed = true
     }
-  }, [])
+  }, [isAuthenticated])
 
   const handleFormChange = (event) => {
     const { name, value } = event.target
@@ -506,8 +515,37 @@ function App() {
     setEditingId(null)
   }
 
+  const handleThemeToggle = () => {
+    setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'))
+  }
+
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />
+  }
+
   return (
     <main className="app-shell">
+      <header className="app-header" aria-label="Application header">
+        <div className="app-header-brand">
+          <svg
+            className="app-logo"
+            width="28"
+            height="28"
+            viewBox="0 0 28 28"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <circle cx="14" cy="14" r="12" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M14 7v7l5 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          <h1>ToDoList</h1>
+        </div>
+        <button type="button" className="theme-toggle" onClick={handleThemeToggle}>
+          {theme === 'light' ? 'Dark' : 'Light'}
+        </button>
+      </header>
+
+      <div className="app-content">
       {isCalendarOpen ? (
         <section className="calendar-page" aria-label="Calendar task lookup">
           <div className="calendar-header">
@@ -680,12 +718,14 @@ function App() {
           <section className="widget-grid">
         {preparedWidgets.length === 0 && !isSyncLoading ? (
           <article className="ios-widget" aria-label="No countdown widgets">
-            <p className="command-title">
-              <span className="command-prefix">&gt;</span>
-              <span className="command-title-text">no_widgets_found</span>
-            </p>
+            <div className="empty-state-icon" aria-hidden="true">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <p className="command-title">Nothing here yet. Add your first task.</p>
             <p className="widget-status">[REMOTE_DATABASE_EMPTY]</p>
-            <p className="widget-date">create your first deadline to begin tracking.</p>
           </article>
         ) : (
           preparedWidgets.map((widget) => {
@@ -759,6 +799,14 @@ function App() {
               ) : (
                 <>
                   <div className="widget-top-row">
+                    <button
+                      type="button"
+                      className="task-check"
+                      onClick={() => handleMarkDone(widget)}
+                      aria-label={`Complete ${widget.label}`}
+                    >
+                      <span className="task-check-dot" />
+                    </button>
                     <div className="widget-meta">
                       <p className="command-title">
                         <span className="command-prefix">&gt;</span>
@@ -784,13 +832,6 @@ function App() {
                     </button>
                     <button
                       type="button"
-                      className="widget-btn widget-btn-done"
-                      onClick={() => handleMarkDone(widget)}
-                    >
-                      done
-                    </button>
-                    <button
-                      type="button"
                       className="widget-btn widget-btn-delete"
                       onClick={() => handleDeleteWidget(widget.id)}
                     >
@@ -806,6 +847,7 @@ function App() {
           </section>
         </>
       )}
+      </div>
     </main>
   )
 }
