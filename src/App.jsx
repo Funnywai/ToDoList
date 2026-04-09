@@ -1615,45 +1615,51 @@ function App() {
               +
             </button>
           ) : (
-            <section className="create-bar" aria-label="Create widget controls">
-              <p className={`sync-status${syncError ? ' sync-status-error' : ''}`}>
-                {isSyncLoading
-                  ? '[SYNC_LOADING_REMOTE_DATABASE]'
-                  : syncError
-                    ? `[SYNC_ERROR] ${syncError}`
-                    : '[SYNC_REMOTE_DATABASE_CONNECTED]'}
-              </p>
-              <form className="command-form command-form-minimal" onSubmit={handleAddWidget}>
-                <p className="form-mode">[MINIMAL_CREATE_MODE]</p>
-                <label>
-                  &gt; widget_name
-                  <input
-                    name="label"
-                    value={form.label}
-                    onChange={handleFormChange}
-                    placeholder="CENG3420 Lab"
-                  />
-                </label>
+            <section
+              className="create-popup-overlay"
+              aria-label="Create widget dialog"
+              onClick={handleCloseCreate}
+            >
+              <article className="create-popup-card" onClick={(event) => event.stopPropagation()}>
+                <p className={`sync-status${syncError ? ' sync-status-error' : ''}`}>
+                  {isSyncLoading
+                    ? '[SYNC_LOADING_REMOTE_DATABASE]'
+                    : syncError
+                      ? `[SYNC_ERROR] ${syncError}`
+                      : '[SYNC_REMOTE_DATABASE_CONNECTED]'}
+                </p>
+                <form className="command-form command-form-minimal" onSubmit={handleAddWidget}>
+                  <p className="form-mode">[MINIMAL_CREATE_MODE]</p>
+                  <label>
+                    &gt; widget_name
+                    <input
+                      name="label"
+                      value={form.label}
+                      onChange={handleFormChange}
+                      placeholder="CENG3420 Lab"
+                    />
+                  </label>
 
-                <label>
-                  &gt; deadline_yyyy_mm_dd
-                  <input
-                    name="deadline"
-                    type="date"
-                    value={form.deadline}
-                    onChange={handleFormChange}
-                  />
-                </label>
+                  <label>
+                    &gt; deadline_yyyy_mm_dd
+                    <input
+                      name="deadline"
+                      type="date"
+                      value={form.deadline}
+                      onChange={handleFormChange}
+                    />
+                  </label>
 
-                <div className="create-actions">
-                  <button type="submit" disabled={!canCreate}>
-                    &gt; create_widget()
-                  </button>
-                  <button type="button" onClick={handleCloseCreate}>
-                    &gt; close_create()
-                  </button>
-                </div>
-              </form>
+                  <div className="create-actions">
+                    <button type="submit" disabled={!canCreate}>
+                      &gt; create_widget()
+                    </button>
+                    <button type="button" onClick={handleCloseCreate}>
+                      &gt; close_create()
+                    </button>
+                  </div>
+                </form>
+              </article>
             </section>
           )}
 
