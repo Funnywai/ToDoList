@@ -263,7 +263,9 @@ function App() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [isDonePageOpen, setIsDonePageOpen] = useState(false)
   const [isRoomPageOpen, setIsRoomPageOpen] = useState(false)
+  const [roomCalendarMonth, setRoomCalendarMonth] = useState(getTodayIsoMonth())
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
+  const [selectedRoomDate, setSelectedRoomDate] = useState('')
   const [form, setForm] = useState({
     label: '',
     deadline: '',
@@ -404,6 +406,117 @@ function App() {
       year: 'numeric',
     })
   }, [calendarMonth])
+
+  const roomCalendarTaskMap = useMemo(() => {
+    const taskMap = {}
+
+    roomTasks.forEach((task) => {
+      if (!task.deadline.startsWith(`${roomCalendarMonth}-`)) {
+        return
+      }
+
+      if (!taskMap[task.deadline]) {
+        taskMap[task.deadline] = []
+      }
+
+      taskMap[task.deadline].push(task)
+    })
+
+    return taskMap
+  }, [roomTasks, roomCalendarMonth])
+
+  const roomCalendarDays = useMemo(() => {
+    const [yearString, monthString] = roomCalendarMonth.split('-')
+    const year = Number(yearString)
+    const month = Number(monthString)
+
+    if (
+      !yearString ||
+      !monthString ||
+      Number.isNaN(year) ||
+      Number.isNaN(month) ||
+      month < 1 ||
+      month > 12
+    ) {
+      return []
+    }
+
+    const firstDayIndex = new Date(year, month - 1, 1).getDay()
+    const dayCount = new Date(year, month, 0).getDate()
+    const calendarCells = []
+    const todayIsoDate = getTodayIsoDate()
+
+    for (let index = 0; index < firstDayIndex; index += 1) {
+      calendarCells.push({
+        key: `room-empty-${index}`,
+        isCurrentMonth: false,
+      })
+    }
+
+    for (let day = 1; day <= dayCount; day += 1) {
+      const dayString = String(day).padStart(2, '0')
+      const isoDate = `${yearString}-${monthString}-${dayString}`
+
+      calendarCells.push({
+        key: isoDate,
+        isCurrentMonth: true,
+        day,
+        isoDate,
+        isToday: isoDate === todayIsoDate,
+        tasks: roomCalendarTaskMap[isoDate] ?? [],
+      })
+    }
+
+    return calendarCells
+  }, [roomCalendarMonth, roomCalendarTaskMap])
+
+  const roomCalendarMonthLabel = useMemo(() => {
+    const [yearString, monthString] = roomCalendarMonth.split('-')
+    const year = Number(yearString)
+    const month = Number(monthString)
+
+    if (
+      !yearString ||
+      !monthString ||
+      Number.isNaN(year) ||
+      Number.isNaN(month) ||
+      month < 1 ||
+      month > 12
+    ) {
+      return roomCalendarMonth
+    }
+
+    return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric',
+    })
+  }, [roomCalendarMonth])
+
+  const selectedRoomTasks = useMemo(() => {
+    if (!selectedRoomDate) {
+      return []
+    }
+
+    return roomCalendarTaskMap[selectedRoomDate] ?? []
+  }, [roomCalendarTaskMap, selectedRoomDate])
+
+  const selectedRoomDateLabel = useMemo(() => {
+    if (!selectedRoomDate) {
+      return ''
+    }
+
+    const date = new Date(`${selectedRoomDate}T00:00:00`)
+    if (Number.isNaN(date.getTime())) {
+      return selectedRoomDate
+    }
+
+    return date.toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }, [selectedRoomDate])
 
   const selectedCalendarTasks = useMemo(() => {
     if (!selectedCalendarDate) {
@@ -803,6 +916,8 @@ function App() {
     setIsCalendarOpen(false)
     setIsDonePageOpen(false)
     setSelectedCalendarDate('')
+    setRoomCalendarMonth(getTodayIsoMonth())
+    setSelectedRoomDate('')
     setIsRoomPageOpen(true)
   }
 
@@ -812,6 +927,23 @@ function App() {
 
   const handleRoomCodeChange = (event) => {
     setRoomCodeInput(event.target.value)
+  }
+
+  const handleRoomCalendarMonthChange = (event) => {
+    setRoomCalendarMonth(event.target.value || getTodayIsoMonth())
+    setSelectedRoomDate('')
+  }
+
+  const handleShiftRoomCalendarMonth = (monthOffset) => {
+    setRoomCalendarMonth((currentMonth) => shiftIsoMonth(currentMonth, monthOffset))
+    setSelectedRoomDate('')
+  }
+
+  const handleJumpToCurrentRoomMonth = () => {
+    const todayIsoMonth = getTodayIsoMonth()
+    const todayIsoDate = getTodayIsoDate()
+    setRoomCalendarMonth(todayIsoMonth)
+    setSelectedRoomDate(todayIsoDate)
   }
 
   const handleCreateRoom = async () => {
@@ -828,6 +960,8 @@ function App() {
       localStorage.setItem('activeRoomCode', roomCode)
       setRoomCode(roomCode)
       setRoomCodeInput('')
+      setRoomCalendarMonth(getTodayIsoMonth())
+      setSelectedRoomDate(getTodayIsoDate())
       setIsRoomPageOpen(true)
     } catch {
       setRoomError('unable_to_create_room')
@@ -863,6 +997,8 @@ function App() {
       localStorage.setItem('activeRoomCode', nextRoomCode)
       setRoomCode(nextRoomCode)
       setRoomCodeInput('')
+      setRoomCalendarMonth(getTodayIsoMonth())
+      setSelectedRoomDate(getTodayIsoDate())
       setIsRoomPageOpen(true)
     } catch {
       setRoomError('unable_to_join_room')
@@ -949,13 +1085,13 @@ function App() {
             <div className="room-header-actions">
               <button
                 type="button"
-                className="secondary-btn"
+                className="room-action-btn room-action-btn-refresh"
                 onClick={handleRefreshRoom}
                 disabled={!roomCode || isRoomLoading}
               >
                 &gt; refresh_room()
               </button>
-              <button type="button" className="secondary-btn" onClick={handleLeaveRoom}>
+              <button type="button" className="room-action-btn room-action-btn-leave" onClick={handleLeaveRoom}>
                 &gt; leave_room()
               </button>
             </div>
@@ -1013,33 +1149,102 @@ function App() {
                 ) : null}
               </section>
 
-              <section className="room-task-list" aria-label="Room deadlines">
-                {roomTasks.length === 0 && !isRoomLoading ? (
-                  <article className="room-empty-state">
-                    <p className="command-title">No shared tasks yet.</p>
-                    <p className="widget-status">Add deadlines to any room member to see them here.</p>
-                  </article>
-                ) : (
-                  roomTasks.map((task) => (
-                    <article key={`${task.memberName}-${task.id}`} className="room-task-item">
-                      <div className="room-task-main">
-                        <p className="command-title">
-                          <span className="command-prefix">&gt;</span>
-                          <span className="command-title-text">{toCommandName(task.label)}</span>
-                        </p>
-                        <p className="widget-date">member: {task.memberName}</p>
-                        <p className="widget-date">deadline: {task.deadline}</p>
+              <section className="calendar-page room-calendar-page" aria-label="Room calendar task lookup">
+                <div className="calendar-header">
+                  <div>
+                    <p className="calendar-title">[ROOM_CALENDAR_OVERVIEW]</p>
+                    <p className="calendar-month-label">{roomCalendarMonthLabel}</p>
+                  </div>
+                  <div className="calendar-controls">
+                    <label className="calendar-input-label">
+                      &gt; pick_month
+                      <div className="calendar-month-picker">
+                        <button
+                          type="button"
+                          className="calendar-month-nav-btn"
+                          onClick={() => handleShiftRoomCalendarMonth(-1)}
+                          aria-label="Previous room month"
+                        >
+                          &lt;
+                        </button>
+                        <input
+                          type="month"
+                          value={roomCalendarMonth}
+                          onChange={handleRoomCalendarMonthChange}
+                          className="calendar-input"
+                        />
+                        <button
+                          type="button"
+                          className="calendar-month-nav-btn"
+                          onClick={() => handleShiftRoomCalendarMonth(1)}
+                          aria-label="Next room month"
+                        >
+                          &gt;
+                        </button>
                       </div>
-                      <div className="room-task-meta">
-                        <span className="room-task-badge">{task.done ? 'done' : 'active'}</span>
-                        <div className="widget-count-row">
-                          <p className="widget-count">{task.daysLeft}</p>
-                          <p className="widget-unit">DAYS</p>
-                        </div>
-                      </div>
-                    </article>
-                  ))
-                )}
+                    </label>
+                    <button type="button" className="calendar-now-btn" onClick={handleJumpToCurrentRoomMonth}>
+                      &gt; current_month()
+                    </button>
+                  </div>
+                </div>
+
+                <div className="calendar-grid-scroll" aria-live="polite">
+                  <div className="calendar-grid" role="grid" aria-label={`Room calendar for ${roomCalendarMonthLabel}`}>
+                    {CALENDAR_WEEK_DAYS.map((dayName) => (
+                      <p key={dayName} className="calendar-weekday" role="columnheader">
+                        {dayName}
+                      </p>
+                    ))}
+                    {roomCalendarDays.map((dayCell) =>
+                      dayCell.isCurrentMonth ? (
+                        <button
+                          key={dayCell.key}
+                          type="button"
+                          className={`calendar-day${dayCell.tasks.length > 0 ? ' calendar-day-has-tasks' : ''}${
+                            dayCell.isToday ? ' calendar-day-today' : ''
+                          }${selectedRoomDate === dayCell.isoDate ? ' calendar-day-selected' : ''}`}
+                          onClick={() => setSelectedRoomDate(dayCell.isoDate)}
+                          role="gridcell"
+                          aria-label={`${dayCell.isoDate} ${dayCell.tasks.length} tasks`}
+                        >
+                          <p className="calendar-day-number">{dayCell.day}</p>
+                          <p className="calendar-day-job-count">
+                            {dayCell.tasks.length === 0
+                              ? 'No Task'
+                              : `${dayCell.tasks.length} ${dayCell.tasks.length === 1 ? 'task' : 'tasks'}`}
+                          </p>
+                        </button>
+                      ) : (
+                        <div
+                          key={dayCell.key}
+                          className="calendar-day calendar-day-empty"
+                          role="presentation"
+                          aria-hidden="true"
+                        />
+                      ),
+                    )}
+                  </div>
+                </div>
+
+                <section className="calendar-details" aria-live="polite">
+                  <p className="calendar-details-title">
+                    {selectedRoomDate
+                      ? `[ROOM_TASKS_ON] ${selectedRoomDateLabel}`
+                      : '[ROOM_TASKS_ON] select a day to view tasks'}
+                  </p>
+                  {selectedRoomDate && selectedRoomTasks.length === 0 ? (
+                    <p className="calendar-day-empty-text">no tasks</p>
+                  ) : selectedRoomDate ? (
+                    <ul className="calendar-details-list">
+                      {selectedRoomTasks.map((task) => (
+                        <li key={`room-detail-${selectedRoomDate}-${task.memberName}-${task.id}`} className="calendar-details-item">
+                          &gt; {toCommandName(task.label)} ({task.memberName})
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </section>
               </section>
             </>
           )}
