@@ -1090,6 +1090,40 @@
     height: 14px;
   }
 
+  .calendar-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 6px;
+  }
+
+  .calendar-input-label {
+    min-width: 0;
+  }
+
+  .calendar-month-picker {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .calendar-month-picker .calendar-month-nav-btn,
+  .calendar-month-picker .calendar-input {
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .calendar-month-picker .calendar-input {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+    padding-block: 0;
+  }
+
+  .calendar-now-btn {
+    white-space: nowrap;
+  }
+
   .room-header-actions {
     width: 100%;
   }

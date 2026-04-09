@@ -1235,10 +1235,10 @@ function App() {
                 onClick={handleRefreshRoom}
                 disabled={!roomCode || isRoomLoading}
               >
-                &gt; refresh_room()
+                refresh_room
               </button>
               <button type="button" className="room-action-btn room-action-btn-leave" onClick={handleLeaveRoom}>
-                &gt; leave_room()
+                leave_room
               </button>
             </div>
           </div>
