@@ -1794,7 +1794,7 @@ function App() {
                       <p className="widget-date">target: {widget.deadline}</p>
                     </div>
                     <div className="widget-time-right">
-                      <p className="widget-status">[SYS_TIME_LEFT]</p>
+                      <p className="widget-status">[TIME_LEFT]</p>
                       <div className="widget-count-row">
                         <p className="widget-count">{widget.daysLeft}</p>
                         <p className="widget-unit">DAYS</p>
