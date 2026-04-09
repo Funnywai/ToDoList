@@ -1170,6 +1170,11 @@ function App() {
   }
 
   const handleLeaveRoom = () => {
+    const shouldLeaveRoom = window.confirm('Leave this room now?')
+    if (!shouldLeaveRoom) {
+      return
+    }
+
     localStorage.removeItem('activeRoomCode')
     setRoomCode('')
     setRoomCodeInput('')
@@ -1220,29 +1225,6 @@ function App() {
       <div className="app-content">
       {isRoomPageOpen ? (
         <section className="room-page" aria-label="Room task overview">
-          <div className="room-header">
-            <div>
-              <p className="room-title">[ROOM_OVERVIEW]</p>
-              <p className="room-heading">{roomCode ? `Room ${roomCode}` : 'Create or join a room'}</p>
-              <p className="room-subtitle">
-                Shared rooms combine the deadlines from everyone in the room.
-              </p>
-            </div>
-            <div className="room-header-actions">
-              <button
-                type="button"
-                className="room-action-btn room-action-btn-refresh"
-                onClick={handleRefreshRoom}
-                disabled={!roomCode || isRoomLoading}
-              >
-                refresh_room
-              </button>
-              <button type="button" className="room-action-btn room-action-btn-leave" onClick={handleLeaveRoom}>
-                leave_room
-              </button>
-            </div>
-          </div>
-
           {!roomCode ? (
             <>
               <section className="room-color-panel" aria-label="Room highlight color picker">
@@ -1312,27 +1294,6 @@ function App() {
                   <span className="room-pill">code {roomCode}</span>
                   <span className="room-pill">members {roomMembers.length}</span>
                 </div>
-                <p className={`room-status${roomError ? ' sync-status-error' : ''}`}>
-                  {isRoomLoading
-                    ? '[ROOM_LOADING]'
-                    : roomError
-                      ? `[ROOM_ERROR] ${roomError}`
-                      : roomStatus || '[ROOM_READY]' }
-                </p>
-                {roomMembers.length > 0 ? (
-                  <div className="room-member-legend" aria-label="Room member colors">
-                    {roomMembers.map((member) => (
-                      <span
-                        key={member.name}
-                        className="room-member-chip"
-                        style={{ '--room-member-accent': member.color }}
-                      >
-                        <span className="room-member-chip-dot" aria-hidden="true" />
-                        <span>{member.name}</span>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
               </section>
 
               <section className="calendar-page room-calendar-page" aria-label="Room calendar task lookup">
@@ -1461,6 +1422,19 @@ function App() {
             <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseRoomPage}>
               &gt; close_room_page()
             </button>
+            <div className="room-footer-actions">
+              <button
+                type="button"
+                className="room-action-btn room-action-btn-refresh"
+                onClick={handleRefreshRoom}
+                disabled={!roomCode || isRoomLoading}
+              >
+                refresh_room
+              </button>
+              <button type="button" className="room-action-btn room-action-btn-leave" onClick={handleLeaveRoom}>
+                leave_room
+              </button>
+            </div>
           </div>
         </section>
       ) : isCalendarOpen ? (
