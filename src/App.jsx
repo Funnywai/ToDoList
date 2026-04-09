@@ -344,6 +344,7 @@ function App() {
   })
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [editForm, setEditForm] = useState({
     label: '',
     deadline: '',
@@ -801,6 +802,14 @@ function App() {
     setIsCreateOpen(false)
   }
 
+  const handleRequestDelete = (id) => {
+    setPendingDeleteId((current) => (current === id ? null : id))
+  }
+
+  const handleCancelDelete = () => {
+    setPendingDeleteId(null)
+  }
+
   const handleDeleteWidget = async (id) => {
     if (!userDeadlinesEndpoint) {
       return
@@ -821,6 +830,7 @@ function App() {
       if (editingId === id) {
         setEditingId(null)
       }
+      setPendingDeleteId(null)
     } catch {
       setSyncError('unable_to_delete_deadline')
     }
@@ -1558,10 +1568,19 @@ function App() {
                     <button
                       type="button"
                       className="widget-btn widget-btn-delete"
-                      onClick={() => handleDeleteWidget(widget.id)}
+                      onClick={() =>
+                        pendingDeleteId === widget.id
+                          ? handleDeleteWidget(widget.id)
+                          : handleRequestDelete(widget.id)
+                      }
                     >
-                      delete
+                      {pendingDeleteId === widget.id ? 'confirm' : 'delete'}
                     </button>
+                    {pendingDeleteId === widget.id ? (
+                      <button type="button" className="widget-btn" onClick={handleCancelDelete}>
+                        cancel
+                      </button>
+                    ) : null}
                   </div>
                 </article>
               ))}
@@ -1727,10 +1746,19 @@ function App() {
                     <button
                       type="button"
                       className="widget-btn widget-btn-delete"
-                      onClick={() => handleDeleteWidget(widget.id)}
+                      onClick={() =>
+                        pendingDeleteId === widget.id
+                          ? handleDeleteWidget(widget.id)
+                          : handleRequestDelete(widget.id)
+                      }
                     >
-                      delete
+                      {pendingDeleteId === widget.id ? 'confirm' : 'delete'}
                     </button>
+                    {pendingDeleteId === widget.id ? (
+                      <button type="button" className="widget-btn" onClick={handleCancelDelete}>
+                        cancel
+                      </button>
+                    ) : null}
                   </div>
                 </>
               ) : (
@@ -1770,10 +1798,19 @@ function App() {
                     <button
                       type="button"
                       className="widget-btn widget-btn-delete"
-                      onClick={() => handleDeleteWidget(widget.id)}
+                      onClick={() =>
+                        pendingDeleteId === widget.id
+                          ? handleDeleteWidget(widget.id)
+                          : handleRequestDelete(widget.id)
+                      }
                     >
-                      delete
+                      {pendingDeleteId === widget.id ? 'confirm' : 'delete'}
                     </button>
+                    {pendingDeleteId === widget.id ? (
+                      <button type="button" className="widget-btn" onClick={handleCancelDelete}>
+                        cancel
+                      </button>
+                    ) : null}
                   </div>
                 </>
               )}
