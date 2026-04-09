@@ -119,6 +119,7 @@ function App() {
 
   const [calendarMonth, setCalendarMonth] = useState(getTodayIsoMonth())
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
+  const [isDonePageOpen, setIsDonePageOpen] = useState(false)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
   const [form, setForm] = useState({
     label: '',
@@ -147,6 +148,18 @@ function App() {
         }))
         .filter((widget) => !widget.done && widget.daysLeft >= 0)
         .sort((a, b) => normalizeDate(a.deadline) - normalizeDate(b.deadline)),
+    [widgets],
+  )
+
+  const doneWidgets = useMemo(
+    () =>
+      widgets
+        .filter((widget) => widget.done)
+        .map((widget) => ({
+          ...widget,
+          daysLeft: getDaysLeft(widget.deadline),
+        }))
+        .sort((a, b) => normalizeDate(b.deadline) - normalizeDate(a.deadline)),
     [widgets],
   )
 
@@ -459,6 +472,7 @@ function App() {
 
   const handleOpenCalendar = () => {
     const todayIsoDate = getTodayIsoDate()
+    setIsDonePageOpen(false)
     setIsCalendarOpen(true)
     setSelectedCalendarDate(todayIsoDate.startsWith(`${calendarMonth}-`) ? todayIsoDate : '')
   }
@@ -466,6 +480,16 @@ function App() {
   const handleCloseCalendar = () => {
     setIsCalendarOpen(false)
     setSelectedCalendarDate('')
+  }
+
+  const handleOpenDonePage = () => {
+    setIsCalendarOpen(false)
+    setSelectedCalendarDate('')
+    setIsDonePageOpen(true)
+  }
+
+  const handleCloseDonePage = () => {
+    setIsDonePageOpen(false)
   }
 
   const handleSaveEdit = async (id) => {
@@ -513,6 +537,36 @@ function App() {
 
   const handleCancelEdit = () => {
     setEditingId(null)
+  }
+
+  const handleMarkUndone = async (widget) => {
+    setSyncError('')
+
+    try {
+      const response = await fetch(`${FIREBASE_DEADLINES_ENDPOINT}/${widget.id}.json`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          label: widget.label,
+          deadline: widget.deadline,
+          done: false,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('undone_failed')
+      }
+
+      setWidgets((current) =>
+        current.map((currentWidget) =>
+          currentWidget.id === widget.id ? { ...currentWidget, done: false } : currentWidget,
+        ),
+      )
+    } catch {
+      setSyncError('unable_to_mark_deadline_undone')
+    }
   }
 
   const handleThemeToggle = () => {
@@ -650,6 +704,65 @@ function App() {
             </button>
           </div>
         </section>
+      ) : isDonePageOpen ? (
+        <section className="done-page" aria-label="Completed tasks">
+          <div className="done-header">
+            <p className="done-title">[DONE_TASKS]</p>
+            <p className="done-subtitle">completed items can be moved back to active</p>
+          </div>
+
+          {doneWidgets.length === 0 ? (
+            <article className="ios-widget" aria-label="No completed tasks">
+              <p className="command-title">No completed tasks yet.</p>
+              <p className="widget-status">Finish one task to see it here.</p>
+            </article>
+          ) : (
+            <section className="widget-grid">
+              {doneWidgets.map((widget) => (
+                <article key={widget.id} className="ios-widget done-widget" aria-label={`${widget.label} completed task`}>
+                  <div className="widget-top-row">
+                    <div className="widget-meta">
+                      <p className="command-title done-task-title">
+                        <span className="command-prefix">&gt;</span>
+                        <span className="command-title-text">{toCommandName(widget.label)}</span>
+                      </p>
+                      <p className="widget-date">target: {widget.deadline}</p>
+                    </div>
+                    <div className="widget-time-right">
+                      <p className="widget-status">[DONE]</p>
+                      <div className="widget-count-row">
+                        <p className="widget-count">{widget.daysLeft}</p>
+                        <p className="widget-unit">DAYS</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="widget-actions">
+                    <button
+                      type="button"
+                      className="widget-btn widget-btn-done"
+                      onClick={() => handleMarkUndone(widget)}
+                    >
+                      undone
+                    </button>
+                    <button
+                      type="button"
+                      className="widget-btn widget-btn-delete"
+                      onClick={() => handleDeleteWidget(widget.id)}
+                    >
+                      delete
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </section>
+          )}
+
+          <div className="calendar-actions">
+            <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseDonePage}>
+              &gt; close_done_page()
+            </button>
+          </div>
+        </section>
       ) : (
         <>
 
@@ -710,9 +823,14 @@ function App() {
           </section>
 
           <section className="calendar-panel" aria-label="Calendar task lookup">
-            <button type="button" className="create-toggle-btn" onClick={handleOpenCalendar}>
-              &gt; open_calendar()
-            </button>
+            <div className="panel-actions">
+              <button type="button" className="create-toggle-btn" onClick={handleOpenCalendar}>
+                &gt; open_calendar()
+              </button>
+              <button type="button" className="create-toggle-btn secondary-btn" onClick={handleOpenDonePage}>
+                &gt; open_done_tasks()
+              </button>
+            </div>
           </section>
 
           <section className="widget-grid">

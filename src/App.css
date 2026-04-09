@@ -252,6 +252,18 @@
   padding: 10px;
 }
 
+.panel-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.secondary-btn {
+  background: color-mix(in srgb, var(--surface-alt), var(--accent) 12%);
+  border-color: var(--border);
+  color: var(--text);
+}
+
 .calendar-page {
   padding: 14px;
   margin-bottom: 12px;
@@ -523,6 +535,41 @@
   border-left: 3px solid #ca8a04;
 }
 
+.done-page {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.done-header {
+  display: grid;
+  gap: 4px;
+}
+
+.done-title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.done-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.done-widget {
+  opacity: 0.72;
+}
+
+.done-task-title .command-title-text {
+  text-decoration: line-through;
+}
+
 .widget-due-today {
   border-left: 3px solid var(--danger);
 }
@@ -561,6 +608,10 @@
 
   .create-actions {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .panel-actions {
+    grid-template-columns: 1fr;
   }
 
   .widget-top-row {
