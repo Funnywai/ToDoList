@@ -1263,7 +1263,7 @@ function App() {
                   Start a shared room, then send the code to the people you want to collaborate with.
                 </p>
                 <button type="button" className="create-toggle-btn" onClick={handleCreateRoom}>
-                  &gt; create_room()
+                  create_room
                 </button>
               </article>
 
@@ -1271,7 +1271,7 @@ function App() {
                 <p className="room-card-title">[ENTER_ROOM_CODE]</p>
                 <form className="room-join-form" onSubmit={handleJoinRoom}>
                   <label>
-                    &gt; room_code
+                    room_code
                     <input
                       value={roomCodeInput}
                       onChange={handleRoomCodeChange}
@@ -1281,7 +1281,7 @@ function App() {
                     />
                   </label>
                   <button type="submit" className="create-toggle-btn">
-                    &gt; enter_room()
+                    enter_room
                   </button>
                 </form>
               </article>
@@ -1299,12 +1299,11 @@ function App() {
               <section className="calendar-page room-calendar-page" aria-label="Room calendar task lookup">
                 <div className="calendar-header">
                   <div>
-                    <p className="calendar-title">[ROOM_CALENDAR_OVERVIEW]</p>
                     <p className="calendar-month-label">{roomCalendarMonthLabel}</p>
                   </div>
                   <div className="calendar-controls">
                     <label className="calendar-input-label">
-                      &gt; pick_month
+                      pick_month
                       <div className="calendar-month-picker">
                         <button
                           type="button"
@@ -1331,7 +1330,7 @@ function App() {
                       </div>
                     </label>
                     <button type="button" className="calendar-now-btn" onClick={handleJumpToCurrentRoomMonth}>
-                      &gt; current_month()
+                      current_month
                     </button>
                   </div>
                 </div>
@@ -1420,7 +1419,7 @@ function App() {
 
           <div className="calendar-actions">
             <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseRoomPage}>
-              &gt; close_room_page()
+              close_room_page
             </button>
             <div className="room-footer-actions">
               <button
@@ -1446,7 +1445,7 @@ function App() {
             </div>
             <div className="calendar-controls">
               <label className="calendar-input-label">
-                &gt; pick_month
+                pick_month
                 <div className="calendar-month-picker">
                   <button
                     type="button"
@@ -1473,7 +1472,7 @@ function App() {
                 </div>
               </label>
               <button type="button" className="calendar-now-btn" onClick={handleJumpToCurrentMonth}>
-                &gt; current_month()
+                current_month
               </button>
             </div>
           </div>
@@ -1537,7 +1536,7 @@ function App() {
 
           <div className="calendar-actions">
             <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseCalendar}>
-              &gt; close_calendar()
+              close_calendar
             </button>
           </div>
         </section>
@@ -1605,7 +1604,7 @@ function App() {
 
           <div className="calendar-actions">
             <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseDonePage}>
-              &gt; close_done_page()
+              close_done_page
             </button>
           </div>
         </section>
@@ -1636,9 +1635,8 @@ function App() {
                       : '[SYNC_REMOTE_DATABASE_CONNECTED]'}
                 </p>
                 <form className="command-form command-form-minimal" onSubmit={handleAddWidget}>
-                  <p className="form-mode">[MINIMAL_CREATE_MODE]</p>
                   <label>
-                    &gt; widget_name
+                    widget_name
                     <input
                       name="label"
                       value={form.label}
@@ -1648,7 +1646,7 @@ function App() {
                   </label>
 
                   <label>
-                    &gt; deadline_yyyy_mm_dd
+                    deadline_yyyy_mm_dd
                     <input
                       name="deadline"
                       type="date"
@@ -1659,10 +1657,10 @@ function App() {
 
                   <div className="create-actions">
                     <button type="submit" disabled={!canCreate}>
-                      &gt; create_widget()
+                      create_widget
                     </button>
                     <button type="button" onClick={handleCloseCreate}>
-                      &gt; close_create()
+                      close_create
                     </button>
                   </div>
                 </form>
@@ -1722,7 +1720,7 @@ function App() {
                   <p className="widget-status">[EDIT_MODE]</p>
                   <div className="widget-edit-form">
                     <label>
-                      &gt; widget_name
+                      widget_name
                       <input
                         name="label"
                         value={editForm.label}
@@ -1731,7 +1729,7 @@ function App() {
                       />
                     </label>
                     <label>
-                      &gt; deadline_yyyy_mm_dd
+                      deadline_yyyy_mm_dd
                       <input
                         name="deadline"
                         type="date"

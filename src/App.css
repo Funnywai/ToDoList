@@ -1122,13 +1122,13 @@
   }
 
   .widget-top-row {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .widget-time-right {
-    grid-column: 2;
-    justify-items: start;
-    text-align: left;
+    grid-column: 3;
+    justify-items: end;
+    text-align: right;
   }
 
   .calendar-grid {
