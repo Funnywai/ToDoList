@@ -286,6 +286,163 @@
   gap: 8px;
 }
 
+.weekday-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.weekday-picker-title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.weekday-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.weekday-btn {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.weekday-btn-selected {
+  border-color: color-mix(in srgb, var(--accent), transparent 40%);
+  background: color-mix(in srgb, var(--surface-alt), var(--accent) 14%);
+}
+
+.toggle-mode-btn {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 12px;
+  justify-self: start;
+  transition: background-color 180ms ease-out, border-color 180ms ease-out;
+}
+
+.toggle-mode-btn:hover {
+  background: color-mix(in srgb, var(--surface-alt), var(--accent) 8%);
+}
+
+.toggle-mode-btn-active {
+  border-color: color-mix(in srgb, var(--accent), transparent 40%);
+  background: color-mix(in srgb, var(--surface-alt), var(--accent) 14%);
+}
+
+.multi-date-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.multi-date-picker-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.multi-date-picker-title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.multi-date-month-picker {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.multi-date-month-nav {
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 180ms ease-out;
+}
+
+.multi-date-month-nav:hover {
+  background: color-mix(in srgb, var(--surface-alt), var(--accent) 8%);
+}
+
+.multi-date-month-input {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+}
+
+.multi-date-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.multi-date-weekday {
+  font-size: 12px;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 4px 0;
+  margin: 0;
+}
+
+.multi-date-cell-empty {
+  aspect-ratio: 1;
+}
+
+.multi-date-cell {
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-alt);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 180ms ease-out;
+}
+
+.multi-date-cell:hover {
+  background: color-mix(in srgb, var(--surface-alt), var(--accent) 8%);
+  border-color: color-mix(in srgb, var(--accent), transparent 60%);
+}
+
+.multi-date-cell-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent), transparent 70%);
+}
+
+.multi-date-cell-selected:hover {
+  background: color-mix(in srgb, var(--accent), black 10%);
+  border-color: color-mix(in srgb, var(--accent), black 14%);
+}
+
 .command-form-minimal .create-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
