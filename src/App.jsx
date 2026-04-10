@@ -7,6 +7,15 @@ const FIREBASE_DATABASE_ENDPOINT =
   'https://todolist-database-aae1c-default-rtdb.firebaseio.com'
 const FIREBASE_ROOMS_ENDPOINT = `${FIREBASE_DATABASE_ENDPOINT}/rooms`
 const CALENDAR_WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const RECURRING_WEEKDAY_OPTIONS = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 0, label: 'Sun' },
+]
 const ROOM_HIGHLIGHT_COLORS = [
   { name: 'Teal', value: '#0f766e' },
   { name: 'Sky', value: '#0284c7' },
@@ -120,17 +129,12 @@ async function getRoomData(roomCode) {
   return response.json()
 }
 
-async function updateRoomMembers(roomCode, roomData, username, color) {
+async function updateRoomMembers(roomCode, roomData, username) {
   const currentMembers = getRoomMemberEntries(roomData)
   const existingMember = currentMembers.find((member) => member.name === username)
-  const nextColor = normalizeRoomColor(color || existingMember?.color || '')
-  const takenColors = getTakenRoomColors(roomData, username)
-
-  if (nextColor && takenColors.has(nextColor)) {
-    throw new Error('room_color_taken')
-  }
-
-  const resolvedColor = nextColor || getAvailableRoomColors(roomData, username)[0]?.value
+  const resolvedColor =
+    (existingMember?.color ? normalizeRoomColor(existingMember.color) : '') ||
+    getAvailableRoomColors(roomData, username)[0]?.value
 
   if (!resolvedColor) {
     throw new Error('room_color_unavailable')
@@ -164,6 +168,55 @@ async function updateRoomMembers(roomCode, roomData, username, color) {
   }
 
   return nextRoomData
+}
+
+async function removeUserFromRoom(roomCode, username) {
+  try {
+    const roomData = await getRoomData(roomCode)
+    if (!roomData) {
+      return
+    }
+
+    const currentMembers = roomData?.members || {}
+    const nextMembers = { ...currentMembers }
+    delete nextMembers[username]
+
+    // If no members left, delete the entire room
+    if (Object.keys(nextMembers).length === 0) {
+      const response = await fetch(`${getRoomEndpoint(roomCode)}.json`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        console.error('Failed to delete empty room:', roomCode)
+        throw new Error('room_delete_failed')
+      }
+      return
+    }
+
+    // Otherwise, update room with remaining members
+    const nextRoomData = {
+      code: normalizeRoomCode(roomCode),
+      createdAt: roomData.createdAt,
+      createdBy: roomData.createdBy,
+      members: nextMembers,
+    }
+
+    const response = await fetch(`${getRoomEndpoint(roomCode)}.json`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(nextRoomData),
+    })
+
+    if (!response.ok) {
+      throw new Error('room_update_failed')
+    }
+  } catch (error) {
+    // Log error for debugging
+    console.warn(`Failed to remove user from room ${roomCode}:`, error)
+  }
 }
 
 async function loadRoomTaskList(roomCode) {
@@ -215,6 +268,74 @@ function getDaysLeft(deadline) {
   today.setHours(0, 0, 0, 0)
   const dueDate = normalizeDate(deadline)
   return Math.ceil((dueDate - today) / MS_PER_DAY)
+}
+
+function toIsoDateString(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function buildRecurringDeadlines(form) {
+  if (form.useMultiDates) {
+    return (form.multiDates || []).length > 0 ? [...form.multiDates].sort() : []
+  }
+
+  if (!form.deadline) {
+    return []
+  }
+
+  if (form.frequency === 'none') {
+    return [form.deadline]
+  }
+
+  const startDate = normalizeDate(form.deadline)
+  const endDate = normalizeDate(form.endDate || form.deadline)
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate) {
+    return []
+  }
+
+  if (form.frequency === 'daily') {
+    const dates = []
+    for (
+      let cursor = new Date(startDate);
+      cursor <= endDate;
+      cursor = new Date(cursor.getTime() + MS_PER_DAY)
+    ) {
+      dates.push(toIsoDateString(cursor))
+    }
+    return dates
+  }
+
+  if (form.frequency === 'weekly') {
+    const weekdays = new Set(
+      (form.weekdays ?? []).map((dayValue) => Number(dayValue)).filter((day) => day >= 0 && day <= 6),
+    )
+
+    if (weekdays.size === 0) {
+      return []
+    }
+
+    const dates = []
+
+    for (
+      let cursor = new Date(startDate);
+      cursor <= endDate;
+      cursor = new Date(cursor.getTime() + MS_PER_DAY)
+    ) {
+      const dayDifference = Math.floor((cursor - startDate) / MS_PER_DAY)
+      const weekOffset = Math.floor(dayDifference / 7)
+      if (weekdays.has(cursor.getDay())) {
+        dates.push(toIsoDateString(cursor))
+      }
+    }
+
+    return dates
+  }
+
+  return [form.deadline]
 }
 
 function toCommandName(label) {
@@ -350,7 +471,13 @@ function App() {
     setIsRoomPageOpen(Boolean(savedRoomCode))
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Remove user from current room if they're in one
+    const currentRoomCode = localStorage.getItem('activeRoomCode')
+    if (currentRoomCode && currentUser) {
+      await removeUserFromRoom(currentRoomCode, currentUser)
+    }
+
     localStorage.removeItem('user')
     localStorage.removeItem('authToken')
     localStorage.removeItem('activeRoomCode')
@@ -362,7 +489,6 @@ function App() {
     setRoomCodeInput('')
     setRoomTasks([])
     setRoomMembers([])
-    setRoomColorChoice(ROOM_HIGHLIGHT_COLORS[0].value)
     setRoomStatus('')
     setRoomError('')
   }
@@ -377,6 +503,12 @@ function App() {
   const [form, setForm] = useState({
     label: '',
     deadline: '',
+    frequency: 'none',
+    endDate: '',
+    weekdays: [],
+    useMultiDates: false,
+    multiDates: [],
+    multiDateMonth: getTodayIsoMonth(),
   })
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -393,7 +525,6 @@ function App() {
   const [roomCode, setRoomCode] = useState(() => localStorage.getItem('activeRoomCode') ?? '')
   const [roomTasks, setRoomTasks] = useState([])
   const [roomMembers, setRoomMembers] = useState([])
-  const [roomColorChoice, setRoomColorChoice] = useState(ROOM_HIGHLIGHT_COLORS[0].value)
   const [roomStatus, setRoomStatus] = useState('')
   const [roomError, setRoomError] = useState('')
   const [isRoomLoading, setIsRoomLoading] = useState(false)
@@ -405,7 +536,15 @@ function App() {
     return getUserDeadlinesEndpoint(currentUser)
   }, [currentUser])
 
-  const canCreate = form.label.trim() !== '' && form.deadline !== ''
+  const recurringNeedsEndDate = form.frequency !== 'none' && !form.useMultiDates
+  const recurringNeedsWeekdays = form.frequency === 'weekly' && !form.useMultiDates
+  const canCreate =
+    form.label.trim() !== '' &&
+    (form.useMultiDates
+      ? form.multiDates.length > 0
+      : form.deadline !== '' &&
+        (!recurringNeedsEndDate || form.endDate !== '') &&
+        (!recurringNeedsWeekdays || form.weekdays.length > 0))
   const canSaveEdit = editForm.label.trim() !== '' && editForm.deadline !== ''
 
   const preparedWidgets = useMemo(
@@ -744,10 +883,6 @@ function App() {
 
         const memberEntries = getRoomMemberEntries(roomData)
         setRoomMembers(memberEntries)
-        const currentMember = memberEntries.find((member) => member.name === currentUser)
-        if (currentMember?.color) {
-          setRoomColorChoice(currentMember.color)
-        }
         setRoomTasks(tasks)
         setRoomStatus(`room ${normalizeRoomCode(roomCode)} loaded`)
       } catch {
@@ -773,7 +908,91 @@ function App() {
 
   const handleFormChange = (event) => {
     const { name, value } = event.target
-    setForm((current) => ({ ...current, [name]: value }))
+    setForm((current) => {
+      if (name === 'useMultiDates') {
+        return {
+          ...current,
+          useMultiDates: !current.useMultiDates,
+          multiDates: [],
+          frequency: 'none',
+          endDate: '',
+          weekdays: [],
+        }
+      }
+
+      if (name === 'multiDateMonth') {
+        return { ...current, multiDateMonth: value || getTodayIsoMonth() }
+      }
+
+      if (name !== 'frequency') {
+        return { ...current, [name]: value }
+      }
+
+      if (value === 'none') {
+        return {
+          ...current,
+          frequency: value,
+          endDate: '',
+          weekdays: [],
+        }
+      }
+
+      if (value === 'daily') {
+        return {
+          ...current,
+          frequency: value,
+          weekdays: [],
+        }
+      }
+
+      return {
+        ...current,
+        frequency: value,
+      }
+    })
+  }
+
+  const handleMultiDateToggle = (isoDate) => {
+    setForm((current) => {
+      const hasDate = current.multiDates.includes(isoDate)
+      return {
+        ...current,
+        multiDates: hasDate
+          ? current.multiDates.filter((date) => date !== isoDate)
+          : [...current.multiDates, isoDate].sort(),
+      }
+    })
+  }
+
+  const handleShiftMultiDateMonth = (monthOffset) => {
+    setForm((current) => ({
+      ...current,
+      multiDateMonth: shiftIsoMonth(current.multiDateMonth, monthOffset),
+    }))
+  }
+
+  const handleToggleMultiDateMode = () => {
+    setForm((current) => ({
+      ...current,
+      useMultiDates: !current.useMultiDates,
+      multiDates: [],
+      frequency: 'none',
+      endDate: '',
+      weekdays: [],
+    }))
+  }
+
+  const handleWeekdayToggle = (weekday) => {
+    setForm((current) => {
+      const weekdayValue = Number(weekday)
+      const hasDay = current.weekdays.includes(weekdayValue)
+      return {
+        ...current,
+        weekdays: hasDay
+          ? current.weekdays.filter((day) => day !== weekdayValue)
+          : [...current.weekdays, weekdayValue].sort((a, b) => a - b),
+      }
+    })
   }
 
   const handleAddWidget = async (event) => {
@@ -782,43 +1001,61 @@ function App() {
       return
     }
 
-    const payload = {
-      label: form.label.trim(),
-      deadline: form.deadline,
+    const deadlines = buildRecurringDeadlines(form)
+    if (deadlines.length === 0) {
+      setSyncError('invalid_recurrence_range')
+      return
     }
+
+    const payloads = deadlines.map((deadline) => ({
+      label: form.label.trim(),
+      deadline,
+      frequency: form.frequency,
+      endDate: form.endDate || form.deadline,
+      weekdays: form.weekdays,
+    }))
 
     setSyncError('')
 
     try {
-      const response = await fetch(`${userDeadlinesEndpoint}.json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+      const createdWidgets = await Promise.all(
+        payloads.map(async (payload) => {
+          const response = await fetch(`${userDeadlinesEndpoint}.json`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          })
 
-      if (!response.ok) {
-        throw new Error('save_failed')
-      }
+          if (!response.ok) {
+            throw new Error('save_failed')
+          }
 
-      const result = await response.json()
-      if (!result?.name) {
-        throw new Error('missing_key')
-      }
+          const result = await response.json()
+          if (!result?.name) {
+            throw new Error('missing_key')
+          }
 
-      setWidgets((current) => [
-        ...current,
-        {
-          id: result.name,
-          ...payload,
-        },
-      ])
+          return {
+            id: result.name,
+            ...payload,
+          }
+        }),
+      )
+
+      setWidgets((current) => [...current, ...createdWidgets])
 
       setForm((current) => ({
         ...current,
         label: '',
         deadline: '',
+        frequency: 'none',
+        endDate: '',
+        weekdays: [],
+        useMultiDates: false,
+        multiDates: [],
+        multiDateMonth: getTodayIsoMonth(),
       }))
       setIsCreateOpen(false)
     } catch {
@@ -834,6 +1071,12 @@ function App() {
     setForm({
       label: '',
       deadline: '',
+      frequency: 'none',
+      endDate: '',
+      weekdays: [],
+      useMultiDates: false,
+      multiDates: [],
+      multiDateMonth: getTodayIsoMonth(),
     })
     setIsCreateOpen(false)
   }
@@ -1048,7 +1291,6 @@ function App() {
     setSelectedCalendarDate('')
     setRoomCalendarMonth(getTodayIsoMonth())
     setSelectedRoomDate('')
-    setRoomColorChoice((currentColor) => currentColor || ROOM_HIGHLIGHT_COLORS[0].value)
     setIsRoomPageOpen(true)
   }
 
@@ -1058,10 +1300,6 @@ function App() {
 
   const handleRoomCodeChange = (event) => {
     setRoomCodeInput(event.target.value)
-  }
-
-  const handleRoomColorSelect = (colorValue) => {
-    setRoomColorChoice(colorValue)
   }
 
   const handleRoomCalendarMonthChange = (event) => {
@@ -1090,10 +1328,15 @@ function App() {
     setRoomStatus('creating room...')
 
     try {
-      const roomCode = await findAvailableRoomCode()
-      await updateRoomMembers(roomCode, null, currentUser, roomColorChoice)
-      localStorage.setItem('activeRoomCode', roomCode)
-      setRoomCode(roomCode)
+      // Remove from current room before creating new room
+      if (roomCode) {
+        await removeUserFromRoom(roomCode, currentUser)
+      }
+
+      const newRoomCode = await findAvailableRoomCode()
+      await updateRoomMembers(newRoomCode, null, currentUser)
+      localStorage.setItem('activeRoomCode', newRoomCode)
+      setRoomCode(newRoomCode)
       setRoomCodeInput('')
       setRoomCalendarMonth(getTodayIsoMonth())
       setSelectedRoomDate(getTodayIsoDate())
@@ -1121,6 +1364,11 @@ function App() {
     setRoomStatus(`joining room ${nextRoomCode}...`)
 
     try {
+      // Remove from current room before joining new room
+      if (roomCode && roomCode !== nextRoomCode) {
+        await removeUserFromRoom(roomCode, currentUser)
+      }
+
       const roomData = await getRoomData(nextRoomCode)
       if (!roomData) {
         setRoomError('room_not_found')
@@ -1128,19 +1376,15 @@ function App() {
         return
       }
 
-      await updateRoomMembers(nextRoomCode, roomData, currentUser, roomColorChoice)
+      await updateRoomMembers(nextRoomCode, roomData, currentUser)
       localStorage.setItem('activeRoomCode', nextRoomCode)
       setRoomCode(nextRoomCode)
       setRoomCodeInput('')
       setRoomCalendarMonth(getTodayIsoMonth())
       setSelectedRoomDate(getTodayIsoDate())
       setIsRoomPageOpen(true)
-    } catch (error) {
-      if (error instanceof Error && error.message === 'room_color_taken') {
-        setRoomError('room_color_already_taken')
-      } else {
-        setRoomError('unable_to_join_room')
-      }
+    } catch {
+      setRoomError('unable_to_join_room')
       setRoomStatus('')
     }
   }
@@ -1169,18 +1413,24 @@ function App() {
     }
   }
 
-  const handleLeaveRoom = () => {
+  const handleLeaveRoom = async () => {
+    if (!roomCode) {
+      return
+    }
+
     const shouldLeaveRoom = window.confirm('Leave this room now?')
     if (!shouldLeaveRoom) {
       return
     }
+
+    // Remove user from room in database before clearing local state
+    await removeUserFromRoom(roomCode, currentUser)
 
     localStorage.removeItem('activeRoomCode')
     setRoomCode('')
     setRoomCodeInput('')
     setRoomTasks([])
     setRoomMembers([])
-    setRoomColorChoice(ROOM_HIGHLIGHT_COLORS[0].value)
     setRoomStatus('')
     setRoomError('')
     setIsRoomPageOpen(false)
@@ -1227,35 +1477,6 @@ function App() {
         <section className="room-page" aria-label="Room task overview">
           {!roomCode ? (
             <>
-              <section className="room-color-panel" aria-label="Room highlight color picker">
-                <div>
-                  <p className="room-card-title">[PICK_HIGHLIGHT_COLOR]</p>
-                  <p className="room-card-copy">
-                    Pick one highlight color for your room tasks. Each member must use a different color.
-                  </p>
-                </div>
-                <div className="room-color-picker">
-                  {ROOM_HIGHLIGHT_COLORS.map((color) => {
-                    const isSelected = normalizeRoomColor(roomColorChoice) === normalizeRoomColor(color.value)
-
-                    return (
-                      <button
-                        key={color.value}
-                        type="button"
-                        className={`room-color-swatch${isSelected ? ' room-color-swatch-selected' : ''}`}
-                        style={{ '--room-swatch-color': color.value }}
-                        onClick={() => handleRoomColorSelect(color.value)}
-                        aria-label={`${color.name} highlight color`}
-                        aria-pressed={isSelected}
-                      >
-                        <span className="room-color-swatch-dot" aria-hidden="true" />
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="room-color-note">The app blocks duplicate colors inside the same room.</p>
-              </section>
-
             <div className="room-grid">
               <article className="room-card" aria-label="Create room">
                 <p className="room-card-title">[CREATE_ROOM]</p>
@@ -1293,6 +1514,9 @@ function App() {
                 <div className="room-summary-row">
                   <span className="room-pill">code {roomCode}</span>
                   <span className="room-pill">members {roomMembers.length}</span>
+                  <button type="button" className="room-action-btn room-action-btn-leave" onClick={handleLeaveRoom}>
+                    leave_room
+                  </button>
                 </div>
               </section>
 
@@ -1421,19 +1645,6 @@ function App() {
             <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseRoomPage}>
               close_room_page
             </button>
-            <div className="room-footer-actions">
-              <button
-                type="button"
-                className="room-action-btn room-action-btn-refresh"
-                onClick={handleRefreshRoom}
-                disabled={!roomCode || isRoomLoading}
-              >
-                refresh_room
-              </button>
-              <button type="button" className="room-action-btn room-action-btn-leave" onClick={handleLeaveRoom}>
-                leave_room
-              </button>
-            </div>
           </div>
         </section>
       ) : isCalendarOpen ? (
@@ -1645,15 +1856,148 @@ function App() {
                     />
                   </label>
 
-                  <label>
-                    deadline_yyyy_mm_dd
-                    <input
-                      name="deadline"
-                      type="date"
-                      value={form.deadline}
-                      onChange={handleFormChange}
-                    />
-                  </label>
+                  <button
+                    type="button"
+                    className={`toggle-mode-btn${form.useMultiDates ? ' toggle-mode-btn-active' : ''}`}
+                    onClick={handleToggleMultiDateMode}
+                    aria-pressed={form.useMultiDates}
+                  >
+                    pick_specific_dates
+                  </button>
+
+                  {!form.useMultiDates ? (
+                    <>
+                      <label>
+                        deadline_yyyy_mm_dd
+                        <input
+                          name="deadline"
+                          type="date"
+                          value={form.deadline}
+                          onChange={handleFormChange}
+                        />
+                      </label>
+
+                      <label>
+                        frequency
+                        <select name="frequency" value={form.frequency} onChange={handleFormChange}>
+                          <option value="none">one_time</option>
+                          <option value="daily">every_day</option>
+                          <option value="weekly">every_week</option>
+                        </select>
+                      </label>
+
+                      {form.frequency !== 'none' ? (
+                        <label>
+                          repeat_until
+                          <input
+                            name="endDate"
+                            type="date"
+                            value={form.endDate}
+                            onChange={handleFormChange}
+                            min={form.deadline || undefined}
+                          />
+                        </label>
+                      ) : null}
+
+                      {form.frequency === 'weekly' ? (
+                        <div className="weekday-picker" aria-label="Select repeat weekdays">
+                          <p className="weekday-picker-title">multi_day</p>
+                          <div className="weekday-picker-grid">
+                            {RECURRING_WEEKDAY_OPTIONS.map((dayOption) => {
+                              const isSelected = form.weekdays.includes(dayOption.value)
+                              return (
+                                <button
+                                  key={dayOption.value}
+                                  type="button"
+                                  className={`weekday-btn${isSelected ? ' weekday-btn-selected' : ''}`}
+                                  onClick={() => handleWeekdayToggle(dayOption.value)}
+                                  aria-pressed={isSelected}
+                                >
+                                  {dayOption.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div className="multi-date-picker">
+                      <div className="multi-date-picker-header">
+                        <p className="multi-date-picker-title">
+                          select_dates ({form.multiDates.length})
+                        </p>
+                        <div className="multi-date-month-picker">
+                          <button
+                            type="button"
+                            onClick={() => handleShiftMultiDateMonth(-1)}
+                            className="multi-date-month-nav"
+                          >
+                            &lt;
+                          </button>
+                          <input
+                            type="month"
+                            value={form.multiDateMonth}
+                            onChange={(e) =>
+                              setForm((current) => ({
+                                ...current,
+                                multiDateMonth: e.target.value || getTodayIsoMonth(),
+                              }))
+                            }
+                            className="multi-date-month-input"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleShiftMultiDateMonth(1)}
+                            className="multi-date-month-nav"
+                          >
+                            &gt;
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="multi-date-calendar">
+                        {CALENDAR_WEEK_DAYS.map((dayName) => (
+                          <p key={dayName} className="multi-date-weekday">
+                            {dayName}
+                          </p>
+                        ))}
+                        {(() => {
+                          const [yearString, monthString] = form.multiDateMonth.split('-')
+                          const year = Number(yearString)
+                          const month = Number(monthString)
+                          const firstDayIndex = new Date(year, month - 1, 1).getDay()
+                          const dayCount = new Date(year, month, 0).getDate()
+
+                          const cells = []
+                          for (let index = 0; index < firstDayIndex; index += 1) {
+                            cells.push(
+                              <div key={`empty-${index}`} className="multi-date-cell-empty" />,
+                            )
+                          }
+
+                          for (let day = 1; day <= dayCount; day += 1) {
+                            const dayString = String(day).padStart(2, '0')
+                            const isoDate = `${yearString}-${monthString}-${dayString}`
+                            const isSelected = form.multiDates.includes(isoDate)
+
+                            cells.push(
+                              <button
+                                key={isoDate}
+                                type="button"
+                                onClick={() => handleMultiDateToggle(isoDate)}
+                                className={`multi-date-cell${isSelected ? ' multi-date-cell-selected' : ''}`}
+                              >
+                                {day}
+                              </button>,
+                            )
+                          }
+
+                          return cells
+                        })()}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="create-actions">
                     <button type="submit" disabled={!canCreate}>
