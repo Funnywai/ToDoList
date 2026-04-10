@@ -173,14 +173,24 @@ async function removeUserFromRoom(roomCode, username) {
       return
     }
 
-    const currentMembers = roomData?.members
-    if (!currentMembers) {
-      return
-    }
-
+    const currentMembers = roomData?.members || {}
     const nextMembers = { ...currentMembers }
     delete nextMembers[username]
 
+    // If no members left, delete the entire room
+    if (Object.keys(nextMembers).length === 0) {
+      const response = await fetch(`${getRoomEndpoint(roomCode)}.json`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        console.error('Failed to delete empty room:', roomCode)
+        throw new Error('room_delete_failed')
+      }
+      return
+    }
+
+    // Otherwise, update room with remaining members
     const nextRoomData = {
       code: normalizeRoomCode(roomCode),
       createdAt: roomData.createdAt,
@@ -199,9 +209,9 @@ async function removeUserFromRoom(roomCode, username) {
     if (!response.ok) {
       throw new Error('room_update_failed')
     }
-  } catch {
-    // Silently fail if room removal fails to avoid blocking logout
-    console.warn(`Failed to remove user from room ${roomCode}`)
+  } catch (error) {
+    // Log error for debugging
+    console.warn(`Failed to remove user from room ${roomCode}:`, error)
   }
 }
 
