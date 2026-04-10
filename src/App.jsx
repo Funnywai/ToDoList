@@ -166,6 +166,45 @@ async function updateRoomMembers(roomCode, roomData, username, color) {
   return nextRoomData
 }
 
+async function removeUserFromRoom(roomCode, username) {
+  try {
+    const roomData = await getRoomData(roomCode)
+    if (!roomData) {
+      return
+    }
+
+    const currentMembers = roomData?.members
+    if (!currentMembers) {
+      return
+    }
+
+    const nextMembers = { ...currentMembers }
+    delete nextMembers[username]
+
+    const nextRoomData = {
+      code: normalizeRoomCode(roomCode),
+      createdAt: roomData.createdAt,
+      createdBy: roomData.createdBy,
+      members: nextMembers,
+    }
+
+    const response = await fetch(`${getRoomEndpoint(roomCode)}.json`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(nextRoomData),
+    })
+
+    if (!response.ok) {
+      throw new Error('room_update_failed')
+    }
+  } catch {
+    // Silently fail if room removal fails to avoid blocking logout
+    console.warn(`Failed to remove user from room ${roomCode}`)
+  }
+}
+
 async function loadRoomTaskList(roomCode) {
   const roomData = await getRoomData(roomCode)
   if (!roomData) {
@@ -350,7 +389,13 @@ function App() {
     setIsRoomPageOpen(Boolean(savedRoomCode))
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Remove user from current room if they're in one
+    const currentRoomCode = localStorage.getItem('activeRoomCode')
+    if (currentRoomCode && currentUser) {
+      await removeUserFromRoom(currentRoomCode, currentUser)
+    }
+
     localStorage.removeItem('user')
     localStorage.removeItem('authToken')
     localStorage.removeItem('activeRoomCode')
@@ -1090,10 +1135,15 @@ function App() {
     setRoomStatus('creating room...')
 
     try {
-      const roomCode = await findAvailableRoomCode()
-      await updateRoomMembers(roomCode, null, currentUser, roomColorChoice)
-      localStorage.setItem('activeRoomCode', roomCode)
-      setRoomCode(roomCode)
+      // Remove from current room before creating new room
+      if (roomCode) {
+        await removeUserFromRoom(roomCode, currentUser)
+      }
+
+      const newRoomCode = await findAvailableRoomCode()
+      await updateRoomMembers(newRoomCode, null, currentUser, roomColorChoice)
+      localStorage.setItem('activeRoomCode', newRoomCode)
+      setRoomCode(newRoomCode)
       setRoomCodeInput('')
       setRoomCalendarMonth(getTodayIsoMonth())
       setSelectedRoomDate(getTodayIsoDate())
@@ -1121,6 +1171,11 @@ function App() {
     setRoomStatus(`joining room ${nextRoomCode}...`)
 
     try {
+      // Remove from current room before joining new room
+      if (roomCode && roomCode !== nextRoomCode) {
+        await removeUserFromRoom(roomCode, currentUser)
+      }
+
       const roomData = await getRoomData(nextRoomCode)
       if (!roomData) {
         setRoomError('room_not_found')
@@ -1169,11 +1224,18 @@ function App() {
     }
   }
 
-  const handleLeaveRoom = () => {
+  const handleLeaveRoom = async () => {
+    if (!roomCode) {
+      return
+    }
+
     const shouldLeaveRoom = window.confirm('Leave this room now?')
     if (!shouldLeaveRoom) {
       return
     }
+
+    // Remove user from room in database before clearing local state
+    await removeUserFromRoom(roomCode, currentUser)
 
     localStorage.removeItem('activeRoomCode')
     setRoomCode('')
@@ -1293,6 +1355,9 @@ function App() {
                 <div className="room-summary-row">
                   <span className="room-pill">code {roomCode}</span>
                   <span className="room-pill">members {roomMembers.length}</span>
+                  <button type="button" className="room-action-btn room-action-btn-leave" onClick={handleLeaveRoom}>
+                    leave_room
+                  </button>
                 </div>
               </section>
 
@@ -1421,19 +1486,6 @@ function App() {
             <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseRoomPage}>
               close_room_page
             </button>
-            <div className="room-footer-actions">
-              <button
-                type="button"
-                className="room-action-btn room-action-btn-refresh"
-                onClick={handleRefreshRoom}
-                disabled={!roomCode || isRoomLoading}
-              >
-                refresh_room
-              </button>
-              <button type="button" className="room-action-btn room-action-btn-leave" onClick={handleLeaveRoom}>
-                leave_room
-              </button>
-            </div>
           </div>
         </section>
       ) : isCalendarOpen ? (
