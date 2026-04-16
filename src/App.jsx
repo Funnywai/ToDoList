@@ -493,12 +493,6 @@ function App() {
   }
 
   const handleLogout = async () => {
-    // Remove user from current room if they're in one
-    const currentRoomCode = localStorage.getItem('activeRoomCode')
-    if (currentRoomCode && currentUser) {
-      await removeUserFromRoom(currentRoomCode, currentUser)
-    }
-
     localStorage.removeItem('user')
     localStorage.removeItem('authToken')
     localStorage.removeItem('activeRoomCode')
