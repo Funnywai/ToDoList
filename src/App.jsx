@@ -554,7 +554,7 @@ function App() {
           ...widget,
           daysLeft: getDaysLeft(widget.deadline),
         }))
-        .filter((widget) => !widget.done && widget.daysLeft >= 0)
+        .filter((widget) => !widget.done)
         .sort((a, b) => normalizeDate(a.deadline) - normalizeDate(b.deadline)),
     [widgets],
   )
@@ -2043,15 +2043,13 @@ function App() {
           </article>
         ) : (
           preparedWidgets.map((widget) => {
-            if (widget.daysLeft < 0) {
-              return null
-            }
-
             return (
               <article
                 key={widget.id}
                 className={`ios-widget${
-                  widget.daysLeft === 0
+                  widget.daysLeft < 0
+                    ? ' widget-overdue'
+                    : widget.daysLeft === 0
                     ? ' widget-due-today'
                     : widget.daysLeft === 1
                       ? ' widget-warning'
@@ -2138,10 +2136,10 @@ function App() {
                       <p className="widget-date">target: {widget.deadline}</p>
                     </div>
                     <div className="widget-time-right">
-                      <p className="widget-status">[TIME_LEFT]</p>
+                      <p className="widget-status">{widget.daysLeft < 0 ? '[OVERDUE]' : '[TIME_LEFT]'}</p>
                       <div className="widget-count-row">
-                        <p className="widget-count">{widget.daysLeft}</p>
-                        <p className="widget-unit">DAYS</p>
+                        <p className="widget-count">{widget.daysLeft < 0 ? Math.abs(widget.daysLeft) : widget.daysLeft}</p>
+                        <p className="widget-unit">{widget.daysLeft < 0 ? 'DAYS AGO' : 'DAYS'}</p>
                       </div>
                     </div>
                   </div>
