@@ -788,6 +788,11 @@
   border-left: 3px solid #ca8a04;
 }
 
+.widget-overdue {
+  border-left: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--surface), var(--danger) 6%);
+}
+
 .done-page {
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
