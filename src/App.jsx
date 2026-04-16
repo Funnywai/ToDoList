@@ -257,6 +257,33 @@ async function loadRoomTaskList(roomCode) {
   }
 }
 
+async function findUserRoomCode(username) {
+  const normalizedUsername = username.trim()
+  if (!normalizedUsername) {
+    return ''
+  }
+
+  const response = await fetch(`${FIREBASE_ROOMS_ENDPOINT}.json`)
+  if (!response.ok) {
+    throw new Error('room_search_failed')
+  }
+
+  const roomsData = await response.json()
+  if (!roomsData || typeof roomsData !== 'object') {
+    return ''
+  }
+
+  const roomEntries = Object.entries(roomsData)
+  for (const [roomKey, roomData] of roomEntries) {
+    const hasMember = getRoomMemberEntries(roomData).some((member) => member.name === normalizedUsername)
+    if (hasMember) {
+      return normalizeRoomCode(roomData?.code || roomKey)
+    }
+  }
+
+  return ''
+}
+
 function normalizeDate(value) {
   const date = new Date(value)
   date.setHours(0, 0, 0, 0)
@@ -452,9 +479,6 @@ function App() {
         const userData = JSON.parse(user)
         setCurrentUser(userData.username)
         setIsAuthenticated(true)
-        const savedRoomCode = localStorage.getItem('activeRoomCode') ?? ''
-        setRoomCode(savedRoomCode)
-        setIsRoomPageOpen(Boolean(savedRoomCode))
       } catch {
         localStorage.removeItem('user')
         localStorage.removeItem('authToken')
@@ -466,9 +490,6 @@ function App() {
     setWidgets([])
     setCurrentUser(username)
     setIsAuthenticated(true)
-    const savedRoomCode = localStorage.getItem('activeRoomCode') ?? ''
-    setRoomCode(savedRoomCode)
-    setIsRoomPageOpen(Boolean(savedRoomCode))
   }
 
   const handleLogout = async () => {
@@ -850,6 +871,48 @@ function App() {
       isDisposed = true
     }
   }, [isAuthenticated, userDeadlinesEndpoint])
+
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser.trim()) {
+      return undefined
+    }
+
+    let isDisposed = false
+
+    const resolveUserRoom = async () => {
+      try {
+        const linkedRoomCode = await findUserRoomCode(currentUser)
+        if (isDisposed) {
+          return
+        }
+
+        if (linkedRoomCode) {
+          localStorage.setItem('activeRoomCode', linkedRoomCode)
+          setRoomCode(linkedRoomCode)
+          setIsRoomPageOpen(true)
+          return
+        }
+
+        localStorage.removeItem('activeRoomCode')
+        setRoomCode('')
+        setIsRoomPageOpen(false)
+      } catch {
+        if (isDisposed) {
+          return
+        }
+
+        const savedRoomCode = localStorage.getItem('activeRoomCode') ?? ''
+        setRoomCode(savedRoomCode)
+        setIsRoomPageOpen(Boolean(savedRoomCode))
+      }
+    }
+
+    resolveUserRoom()
+
+    return () => {
+      isDisposed = true
+    }
+  }, [isAuthenticated, currentUser])
 
   useEffect(() => {
     if (!roomCode) {
