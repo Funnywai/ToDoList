@@ -883,13 +883,11 @@ function App() {
         if (linkedRoomCode) {
           localStorage.setItem('activeRoomCode', linkedRoomCode)
           setRoomCode(linkedRoomCode)
-          setIsRoomPageOpen(true)
           return
         }
 
         localStorage.removeItem('activeRoomCode')
         setRoomCode('')
-        setIsRoomPageOpen(false)
       } catch {
         if (isDisposed) {
           return
@@ -897,7 +895,6 @@ function App() {
 
         const savedRoomCode = localStorage.getItem('activeRoomCode') ?? ''
         setRoomCode(savedRoomCode)
-        setIsRoomPageOpen(Boolean(savedRoomCode))
       }
     }
 
