@@ -493,12 +493,6 @@ function App() {
   }
 
   const handleLogout = async () => {
-    // Remove user from current room if they're in one
-    const currentRoomCode = localStorage.getItem('activeRoomCode')
-    if (currentRoomCode && currentUser) {
-      await removeUserFromRoom(currentRoomCode, currentUser)
-    }
-
     localStorage.removeItem('user')
     localStorage.removeItem('authToken')
     localStorage.removeItem('activeRoomCode')
@@ -889,13 +883,11 @@ function App() {
         if (linkedRoomCode) {
           localStorage.setItem('activeRoomCode', linkedRoomCode)
           setRoomCode(linkedRoomCode)
-          setIsRoomPageOpen(true)
           return
         }
 
         localStorage.removeItem('activeRoomCode')
         setRoomCode('')
-        setIsRoomPageOpen(false)
       } catch {
         if (isDisposed) {
           return
@@ -903,7 +895,6 @@ function App() {
 
         const savedRoomCode = localStorage.getItem('activeRoomCode') ?? ''
         setRoomCode(savedRoomCode)
-        setIsRoomPageOpen(Boolean(savedRoomCode))
       }
     }
 
