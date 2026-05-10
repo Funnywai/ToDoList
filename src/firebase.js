@@ -1,6 +1,8 @@
 // Firebase Database Configuration
-const FIREBASE_USERS_ENDPOINT =
-  'https://todolist-database-aae1c-default-rtdb.firebaseio.com/users'
+const FIREBASE_DATABASE_URL =
+  import.meta.env.VITE_FIREBASE_DATABASE_URL ??
+  'https://todolist-database-aae1c-default-rtdb.firebaseio.com'
+const FIREBASE_USERS_ENDPOINT = `${FIREBASE_DATABASE_URL}/users`
 
 // User authentication functions
 export const checkUserExists = async (username) => {
