@@ -144,7 +144,7 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-container">
       <div className="login-box">
-        <h1>Countdown</h1>
+        <h1>ToDoList</h1>
         <form onSubmit={isSignUp ? handleSignUp : handleLogin}>
           <div className="form-group">
             <label htmlFor="username">Username</label>

@@ -4,6 +4,7 @@ import Login from './Login'
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 const FIREBASE_DATABASE_ENDPOINT =
+  import.meta.env.VITE_FIREBASE_DATABASE_URL ??
   'https://todolist-database-aae1c-default-rtdb.firebaseio.com'
 const FIREBASE_ROOMS_ENDPOINT = `${FIREBASE_DATABASE_ENDPOINT}/rooms`
 const CALENDAR_WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -54,6 +55,36 @@ function getFallbackRoomColor(index) {
 
 function createRoomCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase()
+}
+
+const ERROR_MESSAGES = {
+  unable_to_load_remote_deadlines: 'Unable to load your tasks. Check your connection and try again.',
+  room_not_found: 'Room not found. Double-check the code and try again.',
+  unable_to_load_room_data: 'Unable to load room data. Please try again.',
+  unable_to_create_room: 'Unable to create the room. Please try again.',
+  room_code_required: 'Please enter a room code.',
+  unable_to_join_room: 'Unable to join the room. Please try again.',
+  unable_to_refresh_room: 'Unable to refresh the room. Please try again.',
+  load_failed: 'Could not load tasks.',
+  save_failed: 'Could not save the task.',
+  delete_failed: 'Could not delete the task.',
+  done_failed: 'Could not mark the task as done.',
+  undone_failed: 'Could not restore the task.',
+  update_failed: 'Could not update the task.',
+  missing_key: 'Task is missing required data.',
+  room_load_failed: 'Could not load the room.',
+  room_color_unavailable: 'No member colors are available right now.',
+  room_save_failed: 'Could not save the room.',
+  room_delete_failed: 'Could not delete the room.',
+  room_update_failed: 'Could not update the room.',
+  room_search_failed: 'Could not search rooms.',
+}
+
+function formatErrorMessage(key) {
+  if (!key) {
+    return ''
+  }
+  return ERROR_MESSAGES[key] ?? key
 }
 
 function getRoomMemberEntries(roomData) {
@@ -526,6 +557,7 @@ function App() {
     multiDateMonth: getTodayIsoMonth(),
   })
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isLeaveRoomConfirmOpen, setIsLeaveRoomConfirmOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [editForm, setEditForm] = useState({
@@ -1467,13 +1499,16 @@ function App() {
     }
   }
 
-  const handleLeaveRoom = async () => {
+  const handleLeaveRoom = () => {
     if (!roomCode) {
       return
     }
+    setIsLeaveRoomConfirmOpen(true)
+  }
 
-    const shouldLeaveRoom = window.confirm('Leave this room now?')
-    if (!shouldLeaveRoom) {
+  const handleConfirmLeaveRoom = async () => {
+    setIsLeaveRoomConfirmOpen(false)
+    if (!roomCode) {
       return
     }
 
@@ -1488,6 +1523,10 @@ function App() {
     setRoomStatus('')
     setRoomError('')
     setIsRoomPageOpen(false)
+  }
+
+  const handleCancelLeaveRoom = () => {
+    setIsLeaveRoomConfirmOpen(false)
   }
 
   const handleThemeToggle = () => {
@@ -1559,6 +1598,9 @@ function App() {
                     enter_room
                   </button>
                 </form>
+                {roomError ? (
+                  <p className="room-error" role="alert">{formatErrorMessage(roomError)}</p>
+                ) : null}
               </article>
             </div>
             </>
@@ -1572,6 +1614,9 @@ function App() {
                     leave_room
                   </button>
                 </div>
+                {roomError ? (
+                  <p className="room-error" role="alert">{formatErrorMessage(roomError)}</p>
+                ) : null}
               </section>
 
               <section className="calendar-page room-calendar-page" aria-label="Room calendar task lookup">
@@ -1896,7 +1941,7 @@ function App() {
                   {isSyncLoading
                     ? '[SYNC_LOADING_REMOTE_DATABASE]'
                     : syncError
-                      ? `[SYNC_ERROR] ${syncError}`
+                      ? formatErrorMessage(syncError)
                       : '[SYNC_REMOTE_DATABASE_CONNECTED]'}
                 </p>
                 <form className="command-form command-form-minimal" onSubmit={handleAddWidget}>
@@ -2232,6 +2277,42 @@ function App() {
         </>
       )}
       </div>
+
+      {isLeaveRoomConfirmOpen ? (
+        <section
+          className="create-popup-overlay"
+          aria-label="Leave room confirmation"
+          role="dialog"
+          aria-modal="true"
+          onClick={handleCancelLeaveRoom}
+        >
+          <article
+            className="create-popup-card confirm-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 className="confirm-title">Leave this room?</h2>
+            <p className="confirm-copy">
+              You will stop seeing shared tasks from room {roomCode}. You can rejoin any time with the same code.
+            </p>
+            <div className="confirm-actions">
+              <button
+                type="button"
+                className="create-toggle-btn confirm-cancel-btn"
+                onClick={handleCancelLeaveRoom}
+              >
+                cancel
+              </button>
+              <button
+                type="button"
+                className="create-toggle-btn confirm-destructive-btn"
+                onClick={handleConfirmLeaveRoom}
+              >
+                leave_room
+              </button>
+            </div>
+          </article>
+        </section>
+      ) : null}
     </main>
   )
 }
