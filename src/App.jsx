@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import './App.css'
 import Login from './Login'
 
@@ -530,7 +530,7 @@ function App() {
     setWidgets([])
     setCurrentUser('')
     setIsAuthenticated(false)
-    setIsRoomPageOpen(false)
+    setActiveTab('home')
     setRoomCode('')
     setRoomCodeInput('')
     setRoomTasks([])
@@ -540,9 +540,7 @@ function App() {
   }
 
   const [calendarMonth, setCalendarMonth] = useState(getTodayIsoMonth())
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
-  const [isDonePageOpen, setIsDonePageOpen] = useState(false)
-  const [isRoomPageOpen, setIsRoomPageOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('home')
   const [roomCalendarMonth, setRoomCalendarMonth] = useState(getTodayIsoMonth())
   const [selectedCalendarDate, setSelectedCalendarDate] = useState('')
   const [selectedRoomDate, setSelectedRoomDate] = useState('')
@@ -559,11 +557,21 @@ function App() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isLeaveRoomConfirmOpen, setIsLeaveRoomConfirmOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const [editForm, setEditForm] = useState({
     label: '',
     deadline: '',
   })
+  const [toasts, setToasts] = useState([])
+  const [completingId, setCompletingId] = useState(null)
+  const [quickAddValue, setQuickAddValue] = useState('')
+  const [swipeState, setSwipeState] = useState({ id: null, offsetX: 0 })
+  const swipeStartRef = useRef(null)
+  const longPressTimerRef = useRef(null)
+  const [contextMenu, setContextMenu] = useState(null)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false)
+  const pullStartRef = useRef(null)
+  const taskListRef = useRef(null)
 
   const [widgets, setWidgets] = useState([])
   const [isSyncLoading, setIsSyncLoading] = useState(true)
@@ -605,6 +613,17 @@ function App() {
         .sort((a, b) => normalizeDate(a.deadline) - normalizeDate(b.deadline)),
     [widgets],
   )
+
+  const groupedWidgets = useMemo(() => {
+    const groups = { overdue: [], today: [], tomorrow: [], upcoming: [] }
+    preparedWidgets.forEach((widget) => {
+      if (widget.daysLeft < 0) groups.overdue.push(widget)
+      else if (widget.daysLeft === 0) groups.today.push(widget)
+      else if (widget.daysLeft === 1) groups.tomorrow.push(widget)
+      else groups.upcoming.push(widget)
+    })
+    return groups
+  }, [preparedWidgets])
 
   const doneWidgets = useMemo(
     () =>
@@ -1167,72 +1186,203 @@ function App() {
     setIsCreateOpen(false)
   }
 
-  const handleRequestDelete = (id) => {
-    setPendingDeleteId((current) => (current === id ? null : id))
-  }
+  const handleQuickAdd = async (event) => {
+    event.preventDefault()
+    if (!quickAddValue.trim() || !userDeadlinesEndpoint) return
 
-  const handleCancelDelete = () => {
-    setPendingDeleteId(null)
-  }
-
-  const handleDeleteWidget = async (id) => {
-    if (!userDeadlinesEndpoint) {
-      return
-    }
-
-    setSyncError('')
+    const todayDate = getTodayIsoDate()
+    const payload = { label: quickAddValue.trim(), deadline: todayDate }
 
     try {
-      const response = await fetch(`${userDeadlinesEndpoint}/${id}.json`, {
-        method: 'DELETE',
+      const response = await fetch(`${userDeadlinesEndpoint}.json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
-
-      if (!response.ok) {
-        throw new Error('delete_failed')
-      }
-
-      setWidgets((current) => current.filter((widget) => widget.id !== id))
-      if (editingId === id) {
-        setEditingId(null)
-      }
-      setPendingDeleteId(null)
+      if (!response.ok) throw new Error('save_failed')
+      const result = await response.json()
+      if (!result?.name) throw new Error('missing_key')
+      setWidgets((current) => [...current, { id: result.name, ...payload }])
+      setQuickAddValue('')
     } catch {
+      setSyncError('unable_to_save_new_deadline')
+    }
+  }
+
+  const handleSwipeTouchStart = (event, widget) => {
+    const touch = event.touches[0]
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY, id: widget.id, locked: false }
+    longPressTimerRef.current = setTimeout(() => {
+      setContextMenu({ widget, x: touch.clientX, y: touch.clientY })
+      swipeStartRef.current = null
+    }, 500)
+  }
+
+  const handleSwipeTouchMove = (event) => {
+    if (!swipeStartRef.current) return
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - swipeStartRef.current.x
+    const deltaY = touch.clientY - swipeStartRef.current.y
+
+    if (!swipeStartRef.current.locked) {
+      if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+        clearTimeout(longPressTimerRef.current)
+      }
+      if (Math.abs(deltaY) > Math.abs(deltaX) + 5) {
+        swipeStartRef.current = null
+        return
+      }
+      if (Math.abs(deltaX) > 8) {
+        swipeStartRef.current.locked = true
+      }
+    }
+
+    if (swipeStartRef.current.locked) {
+      event.preventDefault()
+      setSwipeState({ id: swipeStartRef.current.id, offsetX: deltaX })
+    }
+  }
+
+  const handleSwipeTouchEnd = () => {
+    clearTimeout(longPressTimerRef.current)
+    if (!swipeStartRef.current) return
+    const { id } = swipeStartRef.current
+    const { offsetX } = swipeState
+    const threshold = 80
+
+    if (offsetX < -threshold) {
+      const widget = widgets.find((w) => w.id === id)
+      if (widget) handleDeleteWidget(widget)
+    } else if (offsetX > threshold) {
+      const widget = widgets.find((w) => w.id === id)
+      if (widget) handleMarkDone(widget)
+    }
+
+    setSwipeState({ id: null, offsetX: 0 })
+    swipeStartRef.current = null
+  }
+
+  const handlePullRefresh = useCallback(async () => {
+    if (!userDeadlinesEndpoint || isPullRefreshing) return
+    setIsPullRefreshing(true)
+    setSyncError('')
+    try {
+      const response = await fetch(`${userDeadlinesEndpoint}.json`)
+      if (!response.ok) throw new Error('load_failed')
+      const data = await response.json()
+      setWidgets(toWidgetList(data))
+    } catch {
+      setSyncError('unable_to_load_remote_deadlines')
+    } finally {
+      setIsPullRefreshing(false)
+    }
+  }, [userDeadlinesEndpoint, isPullRefreshing])
+
+  const handlePullTouchStart = (event) => {
+    const el = taskListRef.current
+    if (!el || el.scrollTop > 0) return
+    pullStartRef.current = event.touches[0].clientY
+  }
+
+  const handlePullTouchMove = (event) => {
+    if (pullStartRef.current === null) return
+    const delta = event.touches[0].clientY - pullStartRef.current
+    if (delta > 0) {
+      event.preventDefault()
+      setPullDistance(Math.min(delta * 0.5, 80))
+    }
+  }
+
+  const handlePullTouchEnd = () => {
+    if (pullDistance >= 60) {
+      handlePullRefresh()
+    }
+    setPullDistance(0)
+    pullStartRef.current = null
+  }
+
+  const showToast = useCallback((message, undoAction) => {
+    const id = Date.now()
+    const timeoutId = setTimeout(() => {
+      setToasts((current) => current.filter((t) => t.id !== id))
+    }, 5000)
+    setToasts((current) => [...current, { id, message, undoAction, timeoutId }])
+  }, [])
+
+  const handleUndoToast = useCallback((toast) => {
+    clearTimeout(toast.timeoutId)
+    if (toast.undoAction) toast.undoAction()
+    setToasts((current) => current.filter((t) => t.id !== toast.id))
+  }, [])
+
+  const handleDismissToast = useCallback((toast) => {
+    clearTimeout(toast.timeoutId)
+    setToasts((current) => current.filter((t) => t.id !== toast.id))
+  }, [])
+
+  const handleDeleteWidget = async (widget) => {
+    if (!userDeadlinesEndpoint) return
+
+    const widgetData = typeof widget === 'object' ? widget : widgets.find((w) => w.id === widget)
+    if (!widgetData) return
+
+    setWidgets((current) => current.filter((w) => w.id !== widgetData.id))
+    if (editingId === widgetData.id) setEditingId(null)
+
+    showToast(`"${widgetData.label}" deleted`, () => {
+      setWidgets((current) => [...current, widgetData])
+      fetch(`${userDeadlinesEndpoint}/${widgetData.id}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: widgetData.label, deadline: widgetData.deadline, done: widgetData.done || false }),
+      }).catch(() => {})
+    })
+
+    try {
+      const response = await fetch(`${userDeadlinesEndpoint}/${widgetData.id}.json`, { method: 'DELETE' })
+      if (!response.ok) throw new Error('delete_failed')
+    } catch {
+      setWidgets((current) => [...current, widgetData])
       setSyncError('unable_to_delete_deadline')
     }
   }
 
   const handleMarkDone = async (widget) => {
-    if (!userDeadlinesEndpoint) {
-      return
-    }
+    if (!userDeadlinesEndpoint) return
+
+    setCompletingId(widget.id)
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    setCompletingId(null)
 
     setSyncError('')
 
     try {
       const response = await fetch(`${userDeadlinesEndpoint}/${widget.id}.json`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          label: widget.label,
-          deadline: widget.deadline,
-          done: true,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: widget.label, deadline: widget.deadline, done: true }),
       })
 
-      if (!response.ok) {
-        throw new Error('done_failed')
-      }
+      if (!response.ok) throw new Error('done_failed')
 
       setWidgets((current) =>
         current.map((currentWidget) =>
           currentWidget.id === widget.id ? { ...currentWidget, done: true } : currentWidget,
         ),
       )
-      if (editingId === widget.id) {
-        setEditingId(null)
-      }
+      if (editingId === widget.id) setEditingId(null)
+
+      showToast(`"${widget.label}" completed`, () => {
+        fetch(`${userDeadlinesEndpoint}/${widget.id}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label: widget.label, deadline: widget.deadline, done: false }),
+        }).then(() => {
+          setWidgets((current) =>
+            current.map((w) => w.id === widget.id ? { ...w, done: false } : w),
+          )
+        }).catch(() => {})
+      })
     } catch {
       setSyncError('unable_to_mark_deadline_done')
     }
@@ -1270,24 +1420,22 @@ function App() {
 
   const handleOpenCalendar = () => {
     const todayIsoDate = getTodayIsoDate()
-    setIsDonePageOpen(false)
-    setIsCalendarOpen(true)
+    setActiveTab('calendar')
     setSelectedCalendarDate(todayIsoDate.startsWith(`${calendarMonth}-`) ? todayIsoDate : '')
   }
 
   const handleCloseCalendar = () => {
-    setIsCalendarOpen(false)
+    setActiveTab('home')
     setSelectedCalendarDate('')
   }
 
   const handleOpenDonePage = () => {
-    setIsCalendarOpen(false)
     setSelectedCalendarDate('')
-    setIsDonePageOpen(true)
+    setActiveTab('done')
   }
 
   const handleCloseDonePage = () => {
-    setIsDonePageOpen(false)
+    setActiveTab('home')
   }
 
   const handleSaveEdit = async (id) => {
@@ -1372,16 +1520,14 @@ function App() {
   }
 
   const handleOpenRoomPage = () => {
-    setIsCalendarOpen(false)
-    setIsDonePageOpen(false)
     setSelectedCalendarDate('')
     setRoomCalendarMonth(getTodayIsoMonth())
     setSelectedRoomDate('')
-    setIsRoomPageOpen(true)
+    setActiveTab('room')
   }
 
   const handleCloseRoomPage = () => {
-    setIsRoomPageOpen(false)
+    setActiveTab('home')
   }
 
   const handleRoomCodeChange = (event) => {
@@ -1426,7 +1572,7 @@ function App() {
       setRoomCodeInput('')
       setRoomCalendarMonth(getTodayIsoMonth())
       setSelectedRoomDate(getTodayIsoDate())
-      setIsRoomPageOpen(true)
+      setActiveTab('room')
     } catch {
       setRoomError('unable_to_create_room')
       setRoomStatus('')
@@ -1468,7 +1614,7 @@ function App() {
       setRoomCodeInput('')
       setRoomCalendarMonth(getTodayIsoMonth())
       setSelectedRoomDate(getTodayIsoDate())
-      setIsRoomPageOpen(true)
+      setActiveTab('room')
     } catch {
       setRoomError('unable_to_join_room')
       setRoomStatus('')
@@ -1522,7 +1668,7 @@ function App() {
     setRoomMembers([])
     setRoomStatus('')
     setRoomError('')
-    setIsRoomPageOpen(false)
+    setActiveTab('home')
   }
 
   const handleCancelLeaveRoom = () => {
@@ -1566,7 +1712,7 @@ function App() {
       </header>
 
       <div className="app-content">
-      {isRoomPageOpen ? (
+      {activeTab === 'room' ? (
         <section className="room-page" aria-label="Room task overview">
           {!roomCode ? (
             <>
@@ -1740,13 +1886,8 @@ function App() {
             </>
           )}
 
-          <div className="calendar-actions">
-            <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseRoomPage}>
-              close_room_page
-            </button>
-          </div>
         </section>
-      ) : isCalendarOpen ? (
+      ) : activeTab === 'calendar' ? (
         <section className="calendar-page" aria-label="Calendar task lookup">
           <div className="calendar-header">
             <div>
@@ -1843,14 +1984,8 @@ function App() {
               </ul>
             ) : null}
           </section>
-
-          <div className="calendar-actions">
-            <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseCalendar}>
-              close_calendar
-            </button>
-          </div>
         </section>
-      ) : isDonePageOpen ? (
+      ) : activeTab === 'done' ? (
         <section className="done-page" aria-label="Completed tasks">
           <div className="done-header">
             <p className="done-title">[DONE_TASKS]</p>
@@ -1893,33 +2028,46 @@ function App() {
                     <button
                       type="button"
                       className="widget-btn widget-btn-delete"
-                      onClick={() =>
-                        pendingDeleteId === widget.id
-                          ? handleDeleteWidget(widget.id)
-                          : handleRequestDelete(widget.id)
-                      }
+                      onClick={() => handleDeleteWidget(widget)}
                     >
-                      {pendingDeleteId === widget.id ? 'confirm' : 'delete'}
+                      delete
                     </button>
-                    {pendingDeleteId === widget.id ? (
-                      <button type="button" className="widget-btn" onClick={handleCancelDelete}>
-                        cancel
-                      </button>
-                    ) : null}
                   </div>
                 </article>
               ))}
             </section>
           )}
-
-          <div className="calendar-actions">
-            <button type="button" className="create-toggle-btn calendar-close-btn" onClick={handleCloseDonePage}>
-              close_done_page
-            </button>
-          </div>
         </section>
       ) : (
         <>
+
+          <div className="quick-add">
+            <form className="quick-add-form" onSubmit={handleQuickAdd}>
+              <input
+                className="quick-add-input"
+                value={quickAddValue}
+                onChange={(e) => setQuickAddValue(e.target.value)}
+                placeholder="add a task..."
+                aria-label="Quick add task"
+              />
+              <button
+                type="button"
+                className="quick-add-expand-btn"
+                onClick={handleOpenCreate}
+                aria-label="More options"
+              >
+                +options
+              </button>
+              <button
+                type="submit"
+                className="quick-add-submit"
+                disabled={!quickAddValue.trim()}
+                aria-label="Add task"
+              >
+                +
+              </button>
+            </form>
+          </div>
 
           {!isCreateOpen ? (
             <button
@@ -2111,23 +2259,18 @@ function App() {
             </section>
           )}
 
-          <section className="calendar-panel" aria-label="Calendar task lookup">
-            <div className="panel-actions">
-              <button type="button" className="create-toggle-btn" onClick={handleOpenCalendar}>
-                <CalendarActionIcon />
-                calendar
-              </button>
-              <button type="button" className="create-toggle-btn secondary-btn" onClick={handleOpenDonePage}>
-                <DoneActionIcon />
-                done_tasks
-              </button>
-              <button type="button" className="create-toggle-btn secondary-btn" onClick={handleOpenRoomPage}>
-                <RoomActionIcon />
-                room_space
-              </button>
-            </div>
-          </section>
-
+          <div
+            ref={taskListRef}
+            className="task-list-scroll"
+            onTouchStart={handlePullTouchStart}
+            onTouchMove={handlePullTouchMove}
+            onTouchEnd={handlePullTouchEnd}
+          >
+            {pullDistance > 0 || isPullRefreshing ? (
+              <div className="pull-indicator" style={{ height: isPullRefreshing ? 48 : pullDistance * 0.8 }}>
+                {isPullRefreshing ? 'refreshing...' : pullDistance >= 60 ? 'release to refresh' : 'pull to refresh'}
+              </div>
+            ) : null}
           <section className="widget-grid">
         {preparedWidgets.length === 0 && !isSyncLoading ? (
           <article className="ios-widget" aria-label="No countdown widgets">
@@ -2141,10 +2284,20 @@ function App() {
             <p className="widget-status">[REMOTE_DATABASE_EMPTY]</p>
           </article>
         ) : (
-          preparedWidgets.map((widget) => {
+          Object.entries(groupedWidgets).map(([groupKey, groupTasks]) => {
+            if (groupTasks.length === 0) return null
+            const groupLabels = { overdue: 'Overdue', today: 'Due Today', tomorrow: 'Tomorrow', upcoming: 'Upcoming' }
             return (
-              <article
+              <div key={groupKey} className="task-group">
+                <p className={`task-group-header task-group-${groupKey}`}>{groupLabels[groupKey]}</p>
+                {groupTasks.map((widget) => (
+              <div
                 key={widget.id}
+                className="swipe-container"
+              >
+                <div className="swipe-action-left" aria-hidden="true">done ✓</div>
+                <div className="swipe-action-right" aria-hidden="true">delete ✕</div>
+              <article
                 className={`ios-widget${
                   widget.daysLeft < 0
                     ? ' widget-overdue'
@@ -2153,8 +2306,14 @@ function App() {
                     : widget.daysLeft === 1
                       ? ' widget-warning'
                       : ''
-                }`}
+                }${completingId === widget.id ? ' ios-widget-completing' : ''}`}
                 aria-label={`${widget.label} countdown widget`}
+                onTouchStart={(e) => handleSwipeTouchStart(e, widget)}
+                onTouchMove={handleSwipeTouchMove}
+                onTouchEnd={handleSwipeTouchEnd}
+                style={swipeState.id === widget.id
+                  ? { transform: `translateX(${swipeState.offsetX}px)`, transition: 'none' }
+                  : undefined}
               >
               {editingId === widget.id ? (
                 <>
@@ -2201,19 +2360,10 @@ function App() {
                     <button
                       type="button"
                       className="widget-btn widget-btn-delete"
-                      onClick={() =>
-                        pendingDeleteId === widget.id
-                          ? handleDeleteWidget(widget.id)
-                          : handleRequestDelete(widget.id)
-                      }
+                      onClick={() => handleDeleteWidget(widget)}
                     >
-                      {pendingDeleteId === widget.id ? 'confirm' : 'delete'}
+                      delete
                     </button>
-                    {pendingDeleteId === widget.id ? (
-                      <button type="button" className="widget-btn" onClick={handleCancelDelete}>
-                        cancel
-                      </button>
-                    ) : null}
                   </div>
                 </>
               ) : (
@@ -2253,27 +2403,22 @@ function App() {
                     <button
                       type="button"
                       className="widget-btn widget-btn-delete"
-                      onClick={() =>
-                        pendingDeleteId === widget.id
-                          ? handleDeleteWidget(widget.id)
-                          : handleRequestDelete(widget.id)
-                      }
+                      onClick={() => handleDeleteWidget(widget)}
                     >
-                      {pendingDeleteId === widget.id ? 'confirm' : 'delete'}
+                      delete
                     </button>
-                    {pendingDeleteId === widget.id ? (
-                      <button type="button" className="widget-btn" onClick={handleCancelDelete}>
-                        cancel
-                      </button>
-                    ) : null}
                   </div>
                 </>
               )}
               </article>
+              </div>
+                ))}
+              </div>
             )
           })
         )}
           </section>
+          </div>
         </>
       )}
       </div>
@@ -2313,6 +2458,110 @@ function App() {
           </article>
         </section>
       ) : null}
+
+      {contextMenu ? (
+        <div className="context-menu-overlay" onClick={() => setContextMenu(null)} aria-hidden="true">
+          <div
+            className="context-menu"
+            style={{
+              top: Math.min(contextMenu.y, window.innerHeight - 160),
+              left: Math.min(contextMenu.x, window.innerWidth - 180),
+            }}
+            onClick={(e) => e.stopPropagation()}
+            role="menu"
+          >
+            <button
+              type="button"
+              className="context-menu-item"
+              role="menuitem"
+              onClick={() => { handleStartEdit(contextMenu.widget); setContextMenu(null) }}
+            >
+              edit
+            </button>
+            <button
+              type="button"
+              className="context-menu-item"
+              role="menuitem"
+              onClick={() => { handleMarkDone(contextMenu.widget); setContextMenu(null) }}
+            >
+              mark_done
+            </button>
+            <button
+              type="button"
+              className="context-menu-item context-menu-item-danger"
+              role="menuitem"
+              onClick={() => { handleDeleteWidget(contextMenu.widget); setContextMenu(null) }}
+            >
+              delete
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {toasts.length > 0 ? (
+        <div className="toast-container" aria-live="polite">
+          {toasts.map((toast) => (
+            <div key={toast.id} className="toast">
+              <span className="toast-message">{toast.message}</span>
+              {toast.undoAction ? (
+                <button type="button" className="toast-undo-btn" onClick={() => handleUndoToast(toast)}>
+                  undo
+                </button>
+              ) : null}
+              <button type="button" className="toast-dismiss-btn" onClick={() => handleDismissToast(toast)} aria-label="Dismiss">
+                &times;
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <nav className="bottom-tab-bar" aria-label="Main navigation">
+        <button
+          type="button"
+          className={`tab-bar-item${activeTab === 'home' ? ' tab-bar-item-active' : ''}`}
+          onClick={() => setActiveTab('home')}
+        >
+          <svg className="tab-bar-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 12l9-8 9 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M5 10v9a1 1 0 001 1h12a1 1 0 001-1v-9" fill="none" stroke="currentColor" strokeWidth="1.8"/>
+          </svg>
+          <span className="tab-bar-label">home</span>
+        </button>
+        <button
+          type="button"
+          className={`tab-bar-item${activeTab === 'calendar' ? ' tab-bar-item-active' : ''}`}
+          onClick={handleOpenCalendar}
+        >
+          <svg className="tab-bar-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="4" y="5" width="16" height="15" rx="3" fill="none" stroke="currentColor" strokeWidth="1.7" />
+            <path d="M8 3.5v4M16 3.5v4M4 9h16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          </svg>
+          <span className="tab-bar-label">calendar</span>
+        </button>
+        <button
+          type="button"
+          className={`tab-bar-item${activeTab === 'done' ? ' tab-bar-item-active' : ''}`}
+          onClick={handleOpenDonePage}
+        >
+          <svg className="tab-bar-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M8.5 12.5l2.2 2.2 4.8-5.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="1.6"/>
+          </svg>
+          <span className="tab-bar-label">done</span>
+        </button>
+        <button
+          type="button"
+          className={`tab-bar-item${activeTab === 'room' ? ' tab-bar-item-active' : ''}`}
+          onClick={handleOpenRoomPage}
+        >
+          <svg className="tab-bar-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 20V6.5l8-3.5 8 3.5V20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
+            <path d="M9 20v-5.5h6V20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
+          </svg>
+          <span className="tab-bar-label">room</span>
+        </button>
+      </nav>
     </main>
   )
 }
