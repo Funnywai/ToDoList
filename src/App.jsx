@@ -563,15 +563,6 @@ function App() {
   })
   const [toasts, setToasts] = useState([])
   const [completingId, setCompletingId] = useState(null)
-  const [quickAddValue, setQuickAddValue] = useState('')
-  const [swipeState, setSwipeState] = useState({ id: null, offsetX: 0 })
-  const swipeStartRef = useRef(null)
-  const longPressTimerRef = useRef(null)
-  const [contextMenu, setContextMenu] = useState(null)
-  const [pullDistance, setPullDistance] = useState(0)
-  const [isPullRefreshing, setIsPullRefreshing] = useState(false)
-  const pullStartRef = useRef(null)
-  const taskListRef = useRef(null)
 
   const [widgets, setWidgets] = useState([])
   const [isSyncLoading, setIsSyncLoading] = useState(true)
@@ -1184,121 +1175,6 @@ function App() {
       multiDateMonth: getTodayIsoMonth(),
     })
     setIsCreateOpen(false)
-  }
-
-  const handleQuickAdd = async (event) => {
-    event.preventDefault()
-    if (!quickAddValue.trim() || !userDeadlinesEndpoint) return
-
-    const todayDate = getTodayIsoDate()
-    const payload = { label: quickAddValue.trim(), deadline: todayDate }
-
-    try {
-      const response = await fetch(`${userDeadlinesEndpoint}.json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!response.ok) throw new Error('save_failed')
-      const result = await response.json()
-      if (!result?.name) throw new Error('missing_key')
-      setWidgets((current) => [...current, { id: result.name, ...payload }])
-      setQuickAddValue('')
-    } catch {
-      setSyncError('unable_to_save_new_deadline')
-    }
-  }
-
-  const handleSwipeTouchStart = (event, widget) => {
-    const touch = event.touches[0]
-    swipeStartRef.current = { x: touch.clientX, y: touch.clientY, id: widget.id, locked: false }
-    longPressTimerRef.current = setTimeout(() => {
-      setContextMenu({ widget, x: touch.clientX, y: touch.clientY })
-      swipeStartRef.current = null
-    }, 500)
-  }
-
-  const handleSwipeTouchMove = (event) => {
-    if (!swipeStartRef.current) return
-    const touch = event.touches[0]
-    const deltaX = touch.clientX - swipeStartRef.current.x
-    const deltaY = touch.clientY - swipeStartRef.current.y
-
-    if (!swipeStartRef.current.locked) {
-      if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
-        clearTimeout(longPressTimerRef.current)
-      }
-      if (Math.abs(deltaY) > Math.abs(deltaX) + 5) {
-        swipeStartRef.current = null
-        return
-      }
-      if (Math.abs(deltaX) > 8) {
-        swipeStartRef.current.locked = true
-      }
-    }
-
-    if (swipeStartRef.current.locked) {
-      event.preventDefault()
-      setSwipeState({ id: swipeStartRef.current.id, offsetX: deltaX })
-    }
-  }
-
-  const handleSwipeTouchEnd = () => {
-    clearTimeout(longPressTimerRef.current)
-    if (!swipeStartRef.current) return
-    const { id } = swipeStartRef.current
-    const { offsetX } = swipeState
-    const threshold = 80
-
-    if (offsetX < -threshold) {
-      const widget = widgets.find((w) => w.id === id)
-      if (widget) handleDeleteWidget(widget)
-    } else if (offsetX > threshold) {
-      const widget = widgets.find((w) => w.id === id)
-      if (widget) handleMarkDone(widget)
-    }
-
-    setSwipeState({ id: null, offsetX: 0 })
-    swipeStartRef.current = null
-  }
-
-  const handlePullRefresh = useCallback(async () => {
-    if (!userDeadlinesEndpoint || isPullRefreshing) return
-    setIsPullRefreshing(true)
-    setSyncError('')
-    try {
-      const response = await fetch(`${userDeadlinesEndpoint}.json`)
-      if (!response.ok) throw new Error('load_failed')
-      const data = await response.json()
-      setWidgets(toWidgetList(data))
-    } catch {
-      setSyncError('unable_to_load_remote_deadlines')
-    } finally {
-      setIsPullRefreshing(false)
-    }
-  }, [userDeadlinesEndpoint, isPullRefreshing])
-
-  const handlePullTouchStart = (event) => {
-    const el = taskListRef.current
-    if (!el || el.scrollTop > 0) return
-    pullStartRef.current = event.touches[0].clientY
-  }
-
-  const handlePullTouchMove = (event) => {
-    if (pullStartRef.current === null) return
-    const delta = event.touches[0].clientY - pullStartRef.current
-    if (delta > 0) {
-      event.preventDefault()
-      setPullDistance(Math.min(delta * 0.5, 80))
-    }
-  }
-
-  const handlePullTouchEnd = () => {
-    if (pullDistance >= 60) {
-      handlePullRefresh()
-    }
-    setPullDistance(0)
-    pullStartRef.current = null
   }
 
   const showToast = useCallback((message, undoAction) => {
@@ -2041,34 +1917,6 @@ function App() {
       ) : (
         <>
 
-          <div className="quick-add">
-            <form className="quick-add-form" onSubmit={handleQuickAdd}>
-              <input
-                className="quick-add-input"
-                value={quickAddValue}
-                onChange={(e) => setQuickAddValue(e.target.value)}
-                placeholder="add a task..."
-                aria-label="Quick add task"
-              />
-              <button
-                type="button"
-                className="quick-add-expand-btn"
-                onClick={handleOpenCreate}
-                aria-label="More options"
-              >
-                +options
-              </button>
-              <button
-                type="submit"
-                className="quick-add-submit"
-                disabled={!quickAddValue.trim()}
-                aria-label="Add task"
-              >
-                +
-              </button>
-            </form>
-          </div>
-
           {!isCreateOpen ? (
             <button
               type="button"
@@ -2259,18 +2107,6 @@ function App() {
             </section>
           )}
 
-          <div
-            ref={taskListRef}
-            className="task-list-scroll"
-            onTouchStart={handlePullTouchStart}
-            onTouchMove={handlePullTouchMove}
-            onTouchEnd={handlePullTouchEnd}
-          >
-            {pullDistance > 0 || isPullRefreshing ? (
-              <div className="pull-indicator" style={{ height: isPullRefreshing ? 48 : pullDistance * 0.8 }}>
-                {isPullRefreshing ? 'refreshing...' : pullDistance >= 60 ? 'release to refresh' : 'pull to refresh'}
-              </div>
-            ) : null}
           <section className="widget-grid">
         {preparedWidgets.length === 0 && !isSyncLoading ? (
           <article className="ios-widget" aria-label="No countdown widgets">
@@ -2291,13 +2127,8 @@ function App() {
               <div key={groupKey} className="task-group">
                 <p className={`task-group-header task-group-${groupKey}`}>{groupLabels[groupKey]}</p>
                 {groupTasks.map((widget) => (
-              <div
-                key={widget.id}
-                className="swipe-container"
-              >
-                <div className="swipe-action-left" aria-hidden="true">done ✓</div>
-                <div className="swipe-action-right" aria-hidden="true">delete ✕</div>
               <article
+                key={widget.id}
                 className={`ios-widget${
                   widget.daysLeft < 0
                     ? ' widget-overdue'
@@ -2308,12 +2139,6 @@ function App() {
                       : ''
                 }${completingId === widget.id ? ' ios-widget-completing' : ''}`}
                 aria-label={`${widget.label} countdown widget`}
-                onTouchStart={(e) => handleSwipeTouchStart(e, widget)}
-                onTouchMove={handleSwipeTouchMove}
-                onTouchEnd={handleSwipeTouchEnd}
-                style={swipeState.id === widget.id
-                  ? { transform: `translateX(${swipeState.offsetX}px)`, transition: 'none' }
-                  : undefined}
               >
               {editingId === widget.id ? (
                 <>
@@ -2411,14 +2236,12 @@ function App() {
                 </>
               )}
               </article>
-              </div>
                 ))}
               </div>
             )
           })
         )}
           </section>
-          </div>
         </>
       )}
       </div>
@@ -2457,45 +2280,6 @@ function App() {
             </div>
           </article>
         </section>
-      ) : null}
-
-      {contextMenu ? (
-        <div className="context-menu-overlay" onClick={() => setContextMenu(null)} aria-hidden="true">
-          <div
-            className="context-menu"
-            style={{
-              top: Math.min(contextMenu.y, window.innerHeight - 160),
-              left: Math.min(contextMenu.x, window.innerWidth - 180),
-            }}
-            onClick={(e) => e.stopPropagation()}
-            role="menu"
-          >
-            <button
-              type="button"
-              className="context-menu-item"
-              role="menuitem"
-              onClick={() => { handleStartEdit(contextMenu.widget); setContextMenu(null) }}
-            >
-              edit
-            </button>
-            <button
-              type="button"
-              className="context-menu-item"
-              role="menuitem"
-              onClick={() => { handleMarkDone(contextMenu.widget); setContextMenu(null) }}
-            >
-              mark_done
-            </button>
-            <button
-              type="button"
-              className="context-menu-item context-menu-item-danger"
-              role="menuitem"
-              onClick={() => { handleDeleteWidget(contextMenu.widget); setContextMenu(null) }}
-            >
-              delete
-            </button>
-          </div>
-        </div>
       ) : null}
 
       {toasts.length > 0 ? (

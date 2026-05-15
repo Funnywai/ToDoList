@@ -694,80 +694,6 @@ html, body {
   gap: 8px;
 }
 
-.quick-add {
-  margin-bottom: 12px;
-}
-
-.quick-add-form {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.quick-add-input {
-  flex: 1;
-  min-height: 44px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  color: var(--text);
-  padding: 10px 14px;
-  font: inherit;
-  font-size: 16px;
-  transition: all 180ms ease-out;
-}
-
-.quick-add-input:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent), transparent 60%);
-  outline-offset: 1px;
-}
-
-.quick-add-expand-btn {
-  appearance: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface-alt);
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  padding: 0 10px;
-  min-height: 44px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 180ms ease-out;
-}
-
-.quick-add-expand-btn:hover {
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--accent), transparent 60%);
-}
-
-.quick-add-submit {
-  appearance: none;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  border-radius: var(--radius-card);
-  border: 1px solid transparent;
-  background: var(--accent);
-  color: #f5fffe;
-  font-size: 22px;
-  font-weight: 600;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: all 180ms ease-out;
-}
-
-.quick-add-submit:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.quick-add-submit:not(:disabled):hover {
-  transform: scale(1.04);
-}
-
 .widget-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -796,43 +722,6 @@ html, body {
 .task-group-today { color: var(--danger); }
 .task-group-tomorrow { color: #ca8a04; }
 .task-group-upcoming { color: var(--accent); }
-
-.swipe-container {
-  position: relative;
-  border-radius: var(--radius-card);
-  overflow: hidden;
-}
-
-.swipe-action-left,
-.swipe-action-right {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  pointer-events: none;
-}
-
-.swipe-action-left {
-  left: 0;
-  background: var(--accent);
-  color: #fff;
-}
-
-.swipe-action-right {
-  right: 0;
-  background: var(--danger);
-  color: #fff;
-}
-
-.swipe-container .ios-widget {
-  position: relative;
-  z-index: 1;
-}
 
 .ios-widget {
   border: 1px solid var(--border);
@@ -1366,52 +1255,6 @@ html, body {
   font-weight: 500;
 }
 
-.context-menu-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 55;
-}
-
-.context-menu {
-  position: fixed;
-  z-index: 56;
-  min-width: 160px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
-  padding: 6px;
-  display: grid;
-  gap: 2px;
-  animation: toast-in 150ms ease-out;
-}
-
-.context-menu-item {
-  appearance: none;
-  border: none;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 14px;
-  padding: 10px 12px;
-  border-radius: var(--radius-control);
-  cursor: pointer;
-  text-align: left;
-  transition: background-color 120ms ease-out;
-}
-
-.context-menu-item:hover {
-  background: color-mix(in srgb, var(--accent), transparent 90%);
-}
-
-.context-menu-item-danger {
-  color: var(--danger);
-}
-
-.context-menu-item-danger:hover {
-  background: color-mix(in srgb, var(--danger), transparent 90%);
-}
-
 .toast-container {
   position: fixed;
   bottom: calc(72px + env(safe-area-inset-bottom, 0px));
@@ -1467,22 +1310,6 @@ html, body {
   cursor: pointer;
   padding: 4px;
   flex: 0 0 auto;
-}
-
-.task-list-scroll {
-  display: grid;
-  gap: 10px;
-}
-
-.pull-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  font-size: 12px;
-  color: var(--muted);
-  transition: height 200ms ease-out;
-  min-height: 0;
 }
 
 @keyframes toast-in {
